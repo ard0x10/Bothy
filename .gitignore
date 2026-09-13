@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+out/
+dist/
+release/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Development only: kept on this machine, not published
+tests/
+DESIGN.md
+
+# Local machine
+.env
+.env.*
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
