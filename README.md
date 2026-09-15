@@ -4,7 +4,7 @@
 
 <h1 align="center">Bothy</h1>
 
-<p align="center">A local-first kanban and canvas, kept as plain files in a folder you own.</p>
+<p align="center">A local-first kanban and canvas, kept as plain files in a folder you own. AI agents can work on it through MCP.</p>
 
 ![A Bothy workspace with four columns of cards](docs/images/board.png)
 
@@ -13,7 +13,7 @@
 Bothy is a desktop app for planning work. Each workspace has a kanban board and a
 canvas. Everything lives in a folder on your disk as Markdown and JSON, so it can be
 read, versioned and backed up with the tools you already use, and an AI agent can work
-on it too, if you let it.
+on it too, through its built-in MCP server, if you let it.
 
 No account, no server, no sync. Close the app and your files are still just files.
 
