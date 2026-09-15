@@ -7,7 +7,7 @@
 <p align="center">A local-first kanban and canvas, kept as plain files in a folder you own.<br>
 An AI agent can work on it too, through its built-in MCP server, if you let it.</p>
 
-![A Bothy workspace with four columns of cards](docs/images/board.png)
+![A Bothy workspace with four columns of cards](docs/images/01-board.png)
 
 ---
 
@@ -22,6 +22,8 @@ What each version brought is on the
 
 ## The board
 
+![The palette open over the board, one word finding cards in two workspaces](docs/images/02-search.png)
+
 A vault holds workspaces, and each workspace is a folder with its own board. Cards carry
 tags, dates, priority, checklists, attachments, custom fields and a cover the board
 wears, and they move between columns by hand. There is a search across the whole vault,
@@ -32,14 +34,14 @@ Custom sit in Settings, beside any theme file you have put in the folder
 
 ## The calendar
 
-![The calendar, with dated cards drawn as bars across the month](docs/images/calendar.png)
+![The calendar, with dated cards drawn as bars across the month](docs/images/03-calendar.png)
 
 Every dated card in the vault, drawn as a bar across the days it covers. Dragging a bar
 moves the card's dates, and the calendar narrows with a filter of its own.
 
 ## The canvas
 
-![A site map drawn on the canvas with boxes, arrows and a hand drawn circle](docs/images/canvas.png)
+![A site map drawn on the canvas with boxes, arrows and a hand drawn circle](docs/images/04-canvas.png)
 
 Every workspace comes with a canvas: boxes in several shapes, text, a pen and a
 highlighter, an eraser, pictures. Arrows tie to objects and follow them when they move.
@@ -48,7 +50,7 @@ back on another machine.
 
 ## An agent, if you let one in
 
-![A notice saying an agent added a card to Backlog, with the new card at the top of the column](docs/images/ai.png)
+![A notice saying an agent added a card to Backlog, with the new card at the top of the column](docs/images/05-agent.png)
 
 Bothy carries an MCP server. An agent can read the board and the canvas, add and move
 cards, and draw. It is off until you turn it on in Settings, under AI, and you tick the
@@ -111,7 +113,7 @@ My Vault/
 Cards are Markdown with YAML frontmatter, and any key Bothy does not know is kept as
 it is. The full format is in [`docs/format.md`](docs/format.md).
 
-![An open card with dates, a description, a checklist and a custom field](docs/images/card.png)
+![An open card with dates, a description, a checklist and a custom field](docs/images/06-card.png)
 
 That card, on disk:
 
@@ -150,6 +152,8 @@ Bothy's own settings (theme, colours, the last vault, AI access) are kept outsid
 vault, in `%APPDATA%\bothy` on Windows.
 
 ## Themes
+
+![The theme list in Settings, with Dark, Light and Custom above two theme files](docs/images/07-themes.png)
 
 Settings, under Appearance, lists Dark, Light and Custom, then every theme file in the
 themes folder. The folder button beside the list opens it (`%APPDATA%\bothy\themes` on
