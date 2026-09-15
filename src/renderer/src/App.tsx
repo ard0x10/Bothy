@@ -106,6 +106,13 @@ export function App() {
     return stop
   }, [])
 
+  // What a workspace opens on, chosen in the settings window. The store asks for
+  // it as the vault loads; a change arrives here.
+  useEffect(
+    () => window.api.onWorkspaceOpens((value) => useVault.getState().setWorkspaceOpens(value)),
+    []
+  )
+
   // Whether the line says what an agent or something outside Bothy changed,
   // chosen in Settings under AI. Listening before asking, for the same
   // reason as the card view.

@@ -1,12 +1,11 @@
 import { app } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { cleanColors, type Colors } from '../shared/colors'
+import type { Colors } from '../shared/colors'
 import { readViewport, type Viewport } from '../shared/viewport'
 import { readSidebar, type SidebarState } from '../shared/sidebar'
 import { readVaults, rememberVault } from '../shared/vaults'
 import { CAPTURE_DEFAULT, readAccelerator } from '../shared/keys'
-import type { Theme } from '../shared/types'
 
 // The few things that cannot live in a vault, so they sit with the app
 // instead: which vault was open last, and - since step 8 of v0.2 - which theme
@@ -28,12 +27,17 @@ type AppState = {
   // different questions and a list whose first entry is also the answer to
   // "which one now" is a list that cannot hold a vault you looked at and left.
   vaults?: unknown
-  theme?: Theme
+  // What the theme picker holds, and the base under Custom. See
+  // shared/themes.ts for how they are read.
+  theme?: unknown
+  customBase?: unknown
   colors?: Colors
   // Where a card opens. Here for the theme's reason: it is how this app
   // behaves, not a fact about a vault. Unknown, because the file can hold
   // anything; readCardView is what turns it into an answer.
   cardView?: unknown
+  // What a workspace opens on. See shared/opening.ts.
+  workspaceOpens?: unknown
   viewports?: Record<string, unknown>
   sidebar?: unknown
   // The keys quick capture is registered under, D3. Here rather than in a
@@ -48,17 +52,7 @@ type AppState = {
   changeNotices?: unknown
 }
 
-// What the running app is painted with, kept here so a window that opens later
-// - the capture box - can be handed the same answer without reading the file
-// again. Both functions below pass through it, so it is the value state.json
-// holds rather than a second copy free to drift from it.
-let colours: Colors = {}
-
-export function colorsNow(): Colors {
-  return colours
-}
-
-// The same cache, for the same reason, for the panel: the window is built with
+// A cache for the panel: the window is built with
 // this value as a launch argument, so it has to be readable without waiting on
 // a second read of the file.
 let panel: SidebarState = readSidebar(null)
@@ -86,7 +80,6 @@ const file = (): string => join(app.getPath('userData'), 'state.json')
 export async function readState(): Promise<AppState> {
   try {
     const state = JSON.parse(await readFile(file(), 'utf8')) as AppState
-    colours = cleanColors(state.colors)
     panel = readSidebar(state.sidebar)
     capture = readAccelerator(state.capture) ?? CAPTURE_DEFAULT
     return state
@@ -142,9 +135,8 @@ export async function writeSidebar(state: unknown): Promise<SidebarState> {
 export async function writeState(patch: AppState): Promise<void> {
   const state = { ...(await readState()), ...patch }
   // After the merge, not inside readState's half of it: readState has just put
-  // the colours the file held into the cache, and the patch on top of it is
-  // the whole point of this call.
-  colours = cleanColors(state.colors)
+  // what the file held into the caches, and the patch on top of it is the whole
+  // point of this call.
   panel = readSidebar(state.sidebar)
   capture = readAccelerator(state.capture) ?? CAPTURE_DEFAULT
   await writeFile(file(), `${JSON.stringify(state, null, 2)}\n`, 'utf8')

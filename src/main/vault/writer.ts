@@ -35,6 +35,24 @@ function afterOthers(file: string, work: () => Promise<void>): Promise<void> {
   return mine
 }
 
+// One new file at a time per folder. Finding a free name and writing to it are
+// two steps, and two new files asked for in the same moment both found the same
+// free name, so the second write replaced the first. Measured with two pictures
+// pasted into the Add card box back to back: five cards made, four on disk.
+// Per folder, like the writes above per file.
+const naming = new Map<string, Promise<unknown>>()
+
+export function oneNameAtATime<T>(dir: string, work: () => Promise<T>): Promise<T> {
+  const id = key(dir)
+  const mine = (naming.get(id) ?? Promise.resolve()).then(work, work)
+  naming.set(id, mine)
+  const clear = (): void => {
+    if (naming.get(id) === mine) naming.delete(id)
+  }
+  void mine.then(clear, clear)
+  return mine
+}
+
 export function writeText(file: string, text: string): Promise<void> {
   return afterOthers(file, () => write(file, text))
 }

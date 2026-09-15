@@ -4,7 +4,7 @@ import type { Card, Checklist, Template } from '../../shared/types'
 import { coverColor } from '../../shared/cover'
 import { parseCard, serializeCard } from './format'
 import { freeFile, slug } from './create'
-import { writeText } from './writer'
+import { oneNameAtATime, writeText } from './writer'
 
 // Step 5 of v0.2. A template is a card that has not been made yet, and it is
 // kept as a card file in the workspace's own templates/ folder rather than as
@@ -125,7 +125,12 @@ export function cardSeed(template: Template): Partial<Card> {
 // called rather than the flattened file name. Renaming a template afterwards
 // is editing that line, or renaming the file - both are just a folder.
 export async function saveTemplate(workspacePath: string, card: Card): Promise<string> {
-  const file = await freeFile(templatesDir(workspacePath), slug(card.title))
+  const dir = templatesDir(workspacePath)
+  return oneNameAtATime(dir, () => writeTemplate(dir, card))
+}
+
+async function writeTemplate(dir: string, card: Card): Promise<string> {
+  const file = await freeFile(dir, slug(card.title))
   const stored: Card = {
     // No id: an id belongs to a card, and a template is not one. serializeCard
     // drops the key rather than writing an empty one.

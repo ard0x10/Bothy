@@ -2,7 +2,8 @@ import { join } from 'node:path'
 import { BrowserWindow, globalShortcut } from 'electron'
 import { colorsArgument } from '../shared/colors'
 import { CAPTURE_DEFAULT, readAccelerator } from '../shared/keys'
-import { captureKeyNow, colorsNow, writeCaptureKey } from './state'
+import { captureKeyNow, writeCaptureKey } from './state'
+import { groundColor, wornColors } from './themes'
 import { IPC } from '../shared/ipc'
 import type { CaptureTarget, CaptureWhere } from '../shared/types'
 
@@ -118,7 +119,7 @@ function build(parent: BrowserWindow): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: colorsNow()['bg-app'] ?? '#16161a',
+    backgroundColor: groundColor(),
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -127,7 +128,7 @@ function build(parent: BrowserWindow): BrowserWindow {
       // The box is built the first time it is wanted, which can be long after
       // the colours were last changed - so it is handed whatever they are now,
       // and a themed app does not open one window in someone else's palette.
-      additionalArguments: [colorsArgument(colorsNow())]
+      additionalArguments: [colorsArgument(wornColors())]
     }
   })
 

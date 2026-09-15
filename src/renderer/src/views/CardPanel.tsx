@@ -1072,7 +1072,15 @@ function Description({ value, onChange }: { value: string; onChange: (next: stri
       ) : (
         <div
           className={value.trim() ? 'markdown' : 'markdown is-empty'}
-          onClick={() => setEditing(true)}
+          // A link is followed, not edited. Anywhere else in the box opens the
+          // editor, which is how a description is written in the first place,
+          // so the two are told apart by where the press landed. Nothing here
+          // opens anything: the click navigates, and main's guard turns that
+          // into a browser window.
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest('a')) return
+            setEditing(true)
+          }}
           dangerouslySetInnerHTML={{
             __html: value.trim() ? html : '<p>Add a more detailed description…</p>'
           }}

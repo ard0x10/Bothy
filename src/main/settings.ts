@@ -1,8 +1,7 @@
 import { join } from 'node:path'
 import { BrowserWindow } from 'electron'
-import { colorsArgument, type Colors } from '../shared/colors'
-import { colorsNow } from './state'
-import { IPC } from '../shared/ipc'
+import { colorsArgument } from '../shared/colors'
+import { groundColor, wornColors } from './themes'
 import { ICON } from './icon'
 
 // The settings window, D3. A button opens a window of its own rather than a
@@ -50,13 +49,13 @@ function build(parent: BrowserWindow): BrowserWindow {
     modal: false,
     frame: true,
     autoHideMenuBar: true,
-    backgroundColor: colorsNow()['bg-app'] ?? '#16161a',
+    backgroundColor: groundColor(),
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       sandbox: true,
-      additionalArguments: [colorsArgument(colorsNow())]
+      additionalArguments: [colorsArgument(wornColors())]
     }
   })
 
@@ -93,16 +92,4 @@ export function showSettings(parent: BrowserWindow): void {
 export function closeSettings(): void {
   if (sheet && !sheet.isDestroyed()) sheet.destroy()
   sheet = null
-}
-
-// Every window, whichever one did the changing. The colours are one answer for
-// the whole app and there are two windows on screen wearing them, so the one
-// that stores them is the one that says so - and it says the STORED set rather
-// than the asked-for one, because a value the guard refused must not repaint
-// anything anywhere.
-export function paintEveryWindow(colors: Colors): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (window.isDestroyed()) continue
-    window.webContents.send(IPC.colorsChanged, colors)
-  }
 }

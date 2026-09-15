@@ -1,8 +1,17 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ClipboardEvent } from 'react'
 
 // Cards, columns and workspaces are all named before they exist, and a rename
 // is the same box with something already in it. One of these rather than four,
 // so Escape and blur behave the same wherever a name is being typed.
+//
+// A textarea rather than a one line box. A name can be longer than the box is
+// wide - a card title in a 252px column is the ordinary case - and a one line
+// box answers that by scrolling sideways, which carries the start of the
+// sentence off the left edge while it is still being typed. This wraps
+// instead and grows with what is in it, up to the four lines the stylesheet
+// caps it at. It is still one line of text: Enter answers rather than breaking
+// the line, and newlines that arrive by paste come in flattened, because what
+// is typed here becomes the name of a file.
 export function NameBox({
   className,
   placeholder,
@@ -11,7 +20,8 @@ export function NameBox({
   allowEmpty = false,
   keepOpen = false,
   onCommit,
-  onCancel
+  onCancel,
+  onPaste
 }: {
   className: string
   placeholder: string
@@ -33,6 +43,9 @@ export function NameBox({
   keepOpen?: boolean
   onCommit: (name: string) => void
   onCancel: () => void
+  // Left to the box unless the caller takes it: prevent the default to keep
+  // what was pasted out of the text.
+  onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void
 }) {
   const [value, setValue] = useState(initial)
   // Enter commits and then takes the box away, so the risk was that removing a
@@ -64,17 +77,27 @@ export function NameBox({
   const commit = (): void => take(true)
 
   return (
-    <input
-      className={className}
+    <textarea
+      className={'name-box ' + className}
+      rows={1}
       autoFocus
       spellCheck={false}
       value={value}
       placeholder={placeholder}
-      onChange={(event) => setValue(event.target.value)}
+      // A name is one line however it arrives. Paste a paragraph into a one
+      // line box and the browser flattens it; a textarea keeps the newlines,
+      // and they would reach the file name.
+      onChange={(event) => setValue(event.target.value.replace(/[\r\n]+/g, ' '))}
+      onPaste={onPaste}
       onBlur={commit}
       onFocus={(event) => event.currentTarget.select()}
       onKeyDown={(event) => {
-        if (event.key === 'Enter') take(!keepOpen)
+        if (event.key === 'Enter') {
+          // Enter is the answer here, not a new line. Without this the box
+          // would both commit and be left holding a line break.
+          event.preventDefault()
+          take(!keepOpen)
+        }
         if (event.key === 'Escape') {
           // The window owns Escape and would close the card behind this box.
           // Backing out of a name is not a reason to lose your place.

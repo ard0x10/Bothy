@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,7 @@ import {
   sameOrder
 } from '../dnd'
 import { drawn } from '../archive'
+import { stillness } from '../motion'
 import { filteredOut, hiddenIds, type Hidden } from '../filter'
 import { FilterBar, FilterToggle } from './FilterBar'
 import { CardTile } from './CardTile'
@@ -62,6 +63,9 @@ function ColumnBody({
   const { setNodeRef, isOver } = useDroppable({ id: `${COLUMN_PREFIX}${column.id}` })
   const openId = useVault((state) => state.openId)
   const openCard = useVault((state) => state.openCard)
+  const landedIn = useVault((state) => state.landedIn)
+  const landed = useVault((state) => state.landed)
+  const box = useRef<HTMLDivElement | null>(null)
   const byId = new Map(workspace.cards.map((card) => [card.id, card]))
   // Hidden ids stay in column.cards and only leave this list, whether they are
   // hidden for being archived or for not matching the filter. Dropping is
@@ -70,8 +74,41 @@ function ColumnBody({
   const shown = drawn(column, hidden)
   const away = filteredOut(column.cards, hidden)
 
+  // A new card goes on the end, and in a column with more cards than room the
+  // end is the part nobody can see. So the column is taken there once, by the
+  // one that was just made. Only that one: a card dragged in was put where the
+  // hand let go of it, and one written from outside is not something the reader
+  // asked for, so neither moves the scroll from under them.
+  //
+  // The answer is read once and put back, like composingIn: it is news about a
+  // moment, not a state the board is in.
+  // The list is taken hold of before the answer is put back, and not after.
+  // Putting it back tells the store, the store tells this component, and React
+  // hands the ref its node again on the way through - so a read afterwards can
+  // land in the moment where it is null, and the column quietly does not move.
+  // Measured: with the two lines the other way round the scroll never happened
+  // at all.
+  useEffect(() => {
+    if (landedIn !== column.id) return
+    const list = box.current
+    landed(null)
+    if (!list) return
+    list.scrollTo({ top: list.scrollHeight, behavior: stillness() ? 'auto' : 'smooth' })
+  }, [landedIn, column.id, landed])
+
+  // dnd-kit's droppable wants the node and so does the scroll above, and there
+  // is one node to give them. Held still between renders, or React would take
+  // the node away and give it back on every one of them.
+  const hold = useCallback(
+    (node: HTMLDivElement | null): void => {
+      box.current = node
+      setNodeRef(node)
+    },
+    [setNodeRef]
+  )
+
   return (
-    <div ref={setNodeRef} className={isOver ? 'column-cards is-over' : 'column-cards'}>
+    <div ref={hold} className={isOver ? 'column-cards is-over' : 'column-cards'}>
       <SortableContext items={shown} strategy={verticalListSortingStrategy}>
         {shown.map((id) => {
           const card = byId.get(id)
@@ -357,6 +394,7 @@ function TemplateMenu({
 // file name comes from the title and there is only one moment to choose it.
 function AddCard({ columnId, templates }: { columnId: string; templates: Template[] }) {
   const addCard = useVault((state) => state.addCard)
+  const addImageCards = useVault((state) => state.addImageCards)
   const composingIn = useVault((state) => state.composingIn)
   const composeIn = useVault((state) => state.composeIn)
   const [typing, setTyping] = useState(false)
@@ -391,6 +429,22 @@ function AddCard({ columnId, templates }: { columnId: string; templates: Templat
         // there would ask for that same name again and again.
         keepOpen={from === null}
         onCommit={(name) => void addCard(columnId, name, from?.file ?? null)}
+        // A picture pasted into the plain box is a card of its own, one per
+        // picture, and the box stays open with whatever was typed still in it.
+        // Words are left to the box. A box for a template makes one card and
+        // closes, so a picture pasted there is left alone too.
+        onPaste={
+          from === null
+            ? (event) => {
+                const pictures = Array.from(event.clipboardData.files).filter((file) =>
+                  file.type.startsWith('image/')
+                )
+                if (pictures.length === 0) return
+                event.preventDefault()
+                void addImageCards(columnId, pictures)
+              }
+            : undefined
+        }
         onCancel={() => {
           setTyping(false)
           setFrom(null)

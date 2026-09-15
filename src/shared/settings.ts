@@ -1,6 +1,6 @@
-import type { Colors } from './colors'
-import type { Theme } from './types'
+import type { Themes } from './themes'
 import type { CardView } from './cardview'
+import type { WorkspaceOpens } from './opening'
 
 // Everything the settings window opens knowing, D3.
 //
@@ -13,14 +13,14 @@ import type { CardView } from './cardview'
 // built - see settingsNow in main/ipc.ts for what pushing costs. What
 // changes afterwards is pushed, on the channels that already existed for it.
 export type SettingsNow = {
-  theme: Theme
-  // The set the user has changed, not the palette on screen. What each token is
-  // actually painted with is read off the window itself - the same thing the
-  // colours sheet has always done, and for the same reason: a copy of the
-  // theme's values kept here would be wrong the moment the theme moved.
-  colors: Colors
+  // The picker, the custom set and the files in the folder. What each token is
+  // actually painted with is read off the window itself: a copy of a theme's
+  // values kept here would be wrong the moment the theme moved.
+  themes: Themes
   // Where a card opens in the window that owns the vault.
   cardView: CardView
+  // What a workspace opens on.
+  workspaceOpens: WorkspaceOpens
   // What quick capture is registered under and whether the desktop actually
   // gave it to us. Both, because a key that is stored and not held is the one
   // row on this page that can be a lie on a given machine.

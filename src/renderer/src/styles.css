@@ -179,6 +179,57 @@ button {
   cursor: pointer;
 }
 
+/* Every box a name is typed into: a card, a column, a workspace, a label, a
+   theme. One line of text, but a card title can be longer than the column is
+   wide, and a one line box answers that by scrolling sideways with the start
+   of the sentence off the left edge. So the text wraps and the box grows with
+   it, and stops growing at four lines - past that the box being typed into is
+   taller than the cards it was opened under.
+   The cap counts the frame in, because these are border-box: the padding and
+   border each box already had are named below, so all of them stop at the
+   same four lines rather than at four lines plus whatever they were wearing. */
+.name-box {
+  display: block;
+  width: 100%;
+  field-sizing: content;
+  /* Four lines plus the frame this box wears, since these are border-box: the
+     padding and border are counted in, or a box with roomier padding would
+     stop at three and a half lines. Written out per box rather than kept in a
+     variable - every custom property in this file lives in the theme block,
+     and a fifth one here would be the only one that does not. */
+  max-height: calc(4lh + 14px);
+  resize: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Past the fourth line the text scrolls inside the box, and the bar that
+     says so is a bar of arrows down the side of a 250px box. The box is being
+     typed into, so the caret is what says where you are. */
+  scrollbar-width: none;
+}
+
+.name-box::-webkit-scrollbar {
+  display: none;
+}
+
+/* 5 + 5 of padding and 1 + 1 of edge. */
+.sidebar-rename,
+.sidebar-new-input,
+.tag-name-box {
+  max-height: calc(4lh + 12px);
+}
+
+/* 4 + 4 and 1 + 1. */
+.column-rename,
+.add-column-input {
+  max-height: calc(4lh + 10px);
+}
+
+/* 7 + 7 and 1 + 1, on the small line this one is set in. */
+.theme-save-name {
+  max-height: calc(4lh + 16px);
+}
+
 /* First run and the moment before the vault comes back */
 
 .boot {
@@ -2005,6 +2056,12 @@ button {
   display: flex;
   flex-direction: column;
   flex: 0 0 268px;
+  /* The 268 above is only a starting width until this line: a flex item is
+     never narrower than what is inside it, so one card holding an address with
+     no space in it took the column to the width of that address. The column is
+     268 whatever the cards are holding, and the wrapping is the card's
+     business. */
+  min-width: 0;
   max-height: 100%;
   background: var(--bg-column);
   border-radius: var(--radius-column);
@@ -2158,6 +2215,9 @@ button {
 .card-title {
   margin: 0;
   line-height: var(--lh-body);
+  /* Anywhere, not just at spaces: an address is one long word, and a card
+     title that cannot be broken is a column that has to be widened for it. */
+  overflow-wrap: anywhere;
 }
 
 .card-warning {
@@ -2255,6 +2315,15 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
 /* The plain button keeps the whole width it had; the template one sits beside
    it rather than in front of it, so the ordinary way to make a card is still
    the ordinary way. */
+/* Neither of these gives up its height to the cards above them. The column is
+   a flex box with a ceiling, so a full one squeezed the box being typed into
+   instead of scrolling the cards: four lines of text came back as two and a
+   scrollbar. The list is a scroller and gives way; this does not. */
+.add-card-row,
+.add-card-input {
+  flex: none;
+}
+
 .add-card-row {
   position: relative;
   display: flex;
@@ -2724,10 +2793,13 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   color: var(--text);
 }
 
+/* The height is a floor rather than a height now that the box can wrap, and
+   the padding is what used to centre the line inside it: 5 + 20 + 5 + 2 is the
+   32 it stood at. */
 .tag-name-box {
   flex: 1;
-  height: var(--control-h);
-  padding: 0 8px;
+  min-height: var(--control-h);
+  padding: 5px 8px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
@@ -3223,8 +3295,21 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   padding-left: 20px;
 }
 
-.markdown a {
+/* A link in a description is the user's own text. Underlined on the way past
+   rather than always: a paragraph with three links in it should read as a
+   paragraph, not as a list of rules. The hand says it can be pressed, over a
+   box whose own cursor says "type here". Where the press goes is main's
+   business - see the navigation guard in main/index.ts. */
+.markdown a,
+.card-title a {
   color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.markdown a:hover,
+.card-title a:hover {
+  text-decoration: underline;
 }
 
 .markdown code {
@@ -4871,15 +4956,12 @@ body.is-capture {
   flex: none;
 }
 
-/* ---- Theme picker (v0.2 step 8) -------------------------------------------
-   Three states in one strip at the foot of the sidebar, sized like the other
-   sidebar buttons so it reads as one of them rather than as a settings panel
-   that wandered in. */
-
-/* The card view switch wears this rule under a name of its own: the theme
-   section counts .theme-choice to know the picker offers its three. */
-.theme-choice,
+/* ---- Switches ---------------------------------------------------------------
+   Two or three states in one strip. Each switch wears this rule under a name
+   of its own, so a check can count the choices of one switch. */
+.base-choice,
 .view-choice,
+.opens-choice,
 .ai-choice,
 .notice-choice {
   flex: 1;
@@ -4895,15 +4977,17 @@ body.is-capture {
   min-height: var(--control-h);
 }
 
-.theme-choice:hover,
+.base-choice:hover,
 .view-choice:hover,
+.opens-choice:hover,
 .ai-choice:hover,
 .notice-choice:hover {
   color: var(--text);
 }
 
-.theme-choice.is-on,
+.base-choice.is-on,
 .view-choice.is-on,
+.opens-choice.is-on,
 .ai-choice.is-on,
 .notice-choice.is-on {
   background: var(--accent);
@@ -5262,8 +5346,9 @@ body.is-settings {
 
 /* Wide enough that the three read as one switch rather than as three buttons
    that happen to be touching. In the panel their width came from the panel. */
-.settings-choices .theme-choice,
+.settings-choices .base-choice,
 .settings-choices .view-choice,
+.settings-choices .opens-choice,
 .settings-choices .ai-choice,
 .settings-choices .notice-choice {
   min-width: 58px;
@@ -5328,6 +5413,146 @@ body.is-settings {
   color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
+}
+
+/* The theme list. A framed button that says the theme on, with the menu
+   opening under it and lined up with its right edge, since the row puts it
+   against the right side of the page. */
+.theme-picker {
+  position: relative;
+}
+
+.theme-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 180px;
+  min-height: var(--control-h);
+  padding: 0 8px 0 10px;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+.theme-select:hover,
+.theme-select[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.theme-select svg {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.theme-select-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 12;
+  min-width: 100%;
+  width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--bg-card);
+  box-shadow: var(--lift);
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  text-align: left;
+  color: var(--text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+.theme-option:hover {
+  background: var(--bg-card-hover);
+}
+
+.theme-option:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: none;
+}
+
+.theme-option-tick {
+  display: flex;
+  flex: none;
+  width: 16px;
+  color: var(--accent);
+}
+
+.theme-option-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-menu-line {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+
+/* The door to the folder the list is read from, beside the list. */
+.theme-folder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  color: var(--text-dim);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.theme-folder:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.theme-save {
+  display: flex;
+  padding: 8px 2px 0;
+}
+
+/* 7 + 16 + 7 + 2 is the 32 this one stood at: its line is the small one. */
+.theme-save-name {
+  flex: 1;
+  min-height: var(--control-h);
+  padding: 7px 10px;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  outline: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+.theme-saved {
+  margin: 8px 2px 0;
 }
 
 /* The one thing on this page the desktop can veto, said where the row is

@@ -5,10 +5,13 @@ import { CANVAS_KEYS, keyText } from '../../../shared/viewport'
 import { fileName } from '../../../shared/paths'
 import type { SettingsNow } from '../../../shared/settings'
 import { applyColors, currentColors } from '../theme'
-import type { Theme } from '../../../shared/types'
+import type { Base, ThemeChoice, Themes } from '../../../shared/themes'
 import type { CardView } from '../../../shared/cardview'
+import type { WorkspaceOpens } from '../../../shared/opening'
 import type { AiSettings, ChangeNotices } from '../../../shared/ai'
 import { Icon } from './Icon'
+import { NameBox } from './NameBox'
+import { useMenu } from './useMenu'
 
 // The settings window, D3: a window of its own, opened by a button.
 //
@@ -56,10 +59,17 @@ const COLOR_ROWS: { token: ColorToken; label: string; hint: string }[] = [
   { token: 'soon', label: 'Due soon', hint: 'A date coming up' }
 ]
 
-const THEMES: { id: Theme; label: string; hint: string }[] = [
-  { id: 'system', label: 'Auto', hint: 'Follow the desktop' },
-  { id: 'light', label: 'Light', hint: 'Always light' },
-  { id: 'dark', label: 'Dark', hint: 'Always dark' }
+// The three at the top of the theme list. The files in the themes folder come
+// under them.
+const BUILT_IN: { id: ThemeChoice; label: string }[] = [
+  { id: 'dark', label: 'Dark' },
+  { id: 'light', label: 'Light' },
+  { id: 'custom', label: 'Custom' }
+]
+
+const BASES: { id: Base; label: string }[] = [
+  { id: 'dark', label: 'Dark' },
+  { id: 'light', label: 'Light' }
 ]
 
 // Where a card opens. Both stay, and the choice lives
@@ -67,6 +77,12 @@ const THEMES: { id: Theme; label: string; hint: string }[] = [
 const CARD_VIEWS: { id: CardView; label: string; hint: string }[] = [
   { id: 'sheet', label: 'Centre', hint: 'Over the window, with the rest dimmed behind it' },
   { id: 'panel', label: 'Side panel', hint: 'Down the right side, with the kanban still in reach' }
+]
+
+// What a workspace opens on when you go into it.
+const OPENS: { id: WorkspaceOpens; label: string; hint: string }[] = [
+  { id: 'kanban', label: 'Kanban', hint: 'Every workspace opens on its kanban' },
+  { id: 'last', label: 'Last tab', hint: 'Each workspace opens where you left it' }
 ]
 
 // A colour input reports continuously while the pointer moves inside the
@@ -98,17 +114,15 @@ export function Settings() {
     []
   )
 
-  // The colours, from main rather than from here, and this window listens to
-  // its own changes coming back. That is not a round trip for its own sake: the
-  // set that comes back is the set that was STORED, so a value the guard
-  // refused corrects the swatch instead of leaving it showing a colour nothing
-  // is painted in.
+  // The colours this window wears, from main, whichever theme they came from.
+  useEffect(() => window.api.onColors((colors) => applyColors(colors)), [])
+
+  // The theme rows, pushed whenever main stores a change or a file in the
+  // themes folder moves. What comes back is what was STORED, so a value the
+  // guard refused corrects the control instead of leaving it showing a choice
+  // nothing is painted in.
   useEffect(
-    () =>
-      window.api.onColors((colors) => {
-        applyColors(colors)
-        setNow((was) => (was ? { ...was, colors } : was))
-      }),
+    () => window.api.onThemes((themes) => setNow((was) => (was ? { ...was, themes } : was))),
     []
   )
 
@@ -134,7 +148,7 @@ export function Settings() {
         <h1 className="settings-title">{SECTIONS.find((one) => one.id === section)?.label}</h1>
         {section === 'appearance' && <Appearance now={now} setNow={setNow} />}
         {section === 'keys' && <Shortcuts now={now} setNow={setNow} />}
-        {section === 'vault' && <VaultSection now={now} />}
+        {section === 'vault' && <VaultSection now={now} setNow={setNow} />}
         {section === 'ai' && <AiSection />}
       </div>
     </div>
@@ -164,12 +178,23 @@ function Row(props: { name: string; why: string; children: React.ReactNode }) {
 /* --- Appearance ----------------------------------------------------------- */
 
 function Appearance({ now, setNow }: Part) {
-  // What each token is painted with right now, custom or from the theme. Read
-  // from this window rather than kept in a table: a hard-coded copy of the
-  // palette would be a second place the colours live, and it would be wrong the
-  // moment the theme changed underneath it.
+  const themes = now.themes
+
+  // What each token is painted with right now. Read from this window rather
+  // than kept in a table: a hard-coded copy of the palette would be a second
+  // place the colours live, and it would be wrong the moment the base changed
+  // underneath it. The base moves through the media query, so that is listened
+  // to as well.
   const [themed, setThemed] = useState<Record<string, string>>(() => currentColors())
-  useEffect(() => setThemed(currentColors()), [now.colors, now.theme])
+  useEffect(() => setThemed(currentColors()), [themes.colors, themes.theme, themes.customBase])
+  useEffect(() => {
+    const light = matchMedia('(prefers-color-scheme: light)')
+    const read = (): void => setThemed(currentColors())
+    light.addEventListener('change', read)
+    return () => light.removeEventListener('change', read)
+  }, [])
+
+  const answer = (next: Themes): void => setNow((was) => (was ? { ...was, themes: next } : was))
 
   // The write waits; the paint does not. Applying here as well as on the way
   // back from main is what makes dragging inside the picker feel like paint
@@ -177,17 +202,38 @@ function Appearance({ now, setNow }: Part) {
   const [saving, setSaving] = useState<ReturnType<typeof setTimeout> | undefined>()
   const paint = (colors: Colors): void => {
     applyColors(colors)
-    setNow((was) => (was ? { ...was, colors } : was))
+    setNow((was) => (was ? { ...was, themes: { ...was.themes, colors } } : was))
     clearTimeout(saving)
     setSaving(setTimeout(() => void window.api.setColors(colors), SAVE_PAUSE))
   }
 
-  const setTheme = (theme: Theme): void => {
-    setNow((was) => (was ? { ...was, theme } : was))
-    // Nothing here paints anything: main moves nativeTheme, which is what
-    // prefers-color-scheme reports inside EVERY window, so the app repaints
-    // behind this one without being told.
-    void window.api.setTheme(theme)
+  const pickTheme = (theme: ThemeChoice): void => {
+    setNow((was) => (was ? { ...was, themes: { ...was.themes, theme } } : was))
+    void window.api.setTheme(theme).then(answer)
+  }
+
+  const pickBase = (customBase: Base): void => {
+    setNow((was) => (was ? { ...was, themes: { ...was.themes, customBase } } : was))
+    void window.api.setCustomBase(customBase).then(answer)
+  }
+
+  const [folderFailed, setFolderFailed] = useState(false)
+  const openFolder = (): void => {
+    void window.api.openThemesFolder().then((opened) => setFolderFailed(!opened))
+  }
+
+  // Save as theme: a name, then the file. What is written is the colours on
+  // screen, all eleven, so the file looks the same wherever it is opened.
+  const [naming, setNaming] = useState(false)
+  const [saved, setSaved] = useState<{ ok: boolean; text: string } | null>(null)
+  const save = (name: string): void => {
+    void window.api.saveTheme(name, currentColors()).then((result) =>
+      setSaved(
+        'file' in result
+          ? { ok: true, text: `Saved as ${result.file} in the themes folder.` }
+          : { ok: false, text: result.problem }
+      )
+    )
   }
 
   // Written through main and answered with what was kept, so the switch ends
@@ -200,25 +246,36 @@ function Appearance({ now, setNow }: Part) {
       .then((held) => setNow((was) => (was ? { ...was, cardView: held } : was)))
   }
 
-  const changed = Object.keys(now.colors).length
+  const custom = themes.theme === 'custom'
+  const changed = Object.keys(themes.colors).length
+  const chosenFile = themes.files.find((file) => file.file === themes.theme)
 
   return (
     <>
-      <Row name="Theme" why="Follow the desktop, or pin it to one.">
-        <div className="settings-choices" role="group" aria-label="Theme">
-          {THEMES.map((entry) => (
-            <button
-              key={entry.id}
-              className={entry.id === now.theme ? 'theme-choice is-on' : 'theme-choice'}
-              aria-pressed={entry.id === now.theme}
-              title={entry.hint}
-              onClick={() => setTheme(entry.id)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
+      <Row name="Theme" why="Dark, light, your own colours, or a theme file from the themes folder.">
+        <ThemePicker themes={themes} onPick={pickTheme} />
+        <button
+          className="theme-folder"
+          title="Open the themes folder"
+          aria-label="Open the themes folder"
+          onClick={openFolder}
+        >
+          <Icon name="folder" />
+        </button>
       </Row>
+
+      {/* Said on the row: the list still says the file's name, and the window
+          is dark, and without this a person has two answers and no reason. */}
+      {themes.missing && (
+        <p className="settings-warn theme-missing">
+          {chosenFile?.problem
+            ? `${chosenFile.name} cannot be used: ${chosenFile.problem} Dark is showing until the file is fixed.`
+            : `${themes.theme} is not in the themes folder. Dark is showing until it is back.`}
+        </p>
+      )}
+      {folderFailed && (
+        <p className="settings-warn">The themes folder could not be opened: {themes.folder}</p>
+      )}
 
       <Row name="Card details" why="Where a card opens when you click it.">
         <div className="settings-choices" role="group" aria-label="Card details">
@@ -236,62 +293,186 @@ function Appearance({ now, setNow }: Part) {
         </div>
       </Row>
 
-      <Row
-        name="Colours"
-        why="One set, laid over whichever theme is on. A colour you have not changed follows the theme."
-      >
-        <span className="settings-note">
-          {changed === 0 ? 'Following the theme' : `${changed} of ${COLOR_TOKENS.length} changed`}
-        </span>
-        <button
-          className="colors-reset"
-          title="Put every colour back to the theme"
-          disabled={changed === 0}
-          onClick={() => paint({})}
-        >
-          Reset all
-        </button>
-      </Row>
+      {custom && (
+        <>
+          <Row
+            name="Colours"
+            why="Your own colours over the base below. A colour you have not changed follows the base."
+          >
+            <span className="settings-note">
+              {changed === 0 ? 'Following the base' : `${changed} of ${COLOR_TOKENS.length} changed`}
+            </span>
+            <button
+              className="settings-act theme-save-open"
+              title="Write these colours to a file in the themes folder"
+              onClick={() => {
+                setSaved(null)
+                setNaming(true)
+              }}
+            >
+              Save as theme…
+            </button>
+            <button
+              className="colors-reset"
+              title="Put every colour back to the base"
+              disabled={changed === 0}
+              onClick={() => paint({})}
+            >
+              Reset all
+            </button>
+          </Row>
 
-      <ul className="colors-list">
-        {COLOR_ROWS.map((row) => {
-          const custom = now.colors[row.token]
-          const value = custom ?? themed[row.token] ?? '#000000'
-          return (
-            <li key={row.token} className={custom ? 'colors-row is-set' : 'colors-row'}>
-              <input
-                className="colors-swatch"
-                type="color"
-                value={value}
-                aria-label={row.label}
-                onChange={(event) => paint({ ...now.colors, [row.token]: event.target.value })}
+          {naming && (
+            <div className="theme-save">
+              <NameBox
+                className="theme-save-name"
+                placeholder="Name the theme and press Enter"
+                onCommit={save}
+                onCancel={() => setNaming(false)}
               />
-              <span className="colors-name">
-                {row.label}
-                <span className="colors-hint">{row.hint}</span>
-              </span>
-              <span className="colors-value">{value}</span>
-              <button
-                className="colors-act"
-                title="Back to the theme's colour"
-                disabled={!custom}
-                onClick={() => {
-                  // Dropped rather than written with the value it has. Writing
-                  // the current value back would look identical and be a
-                  // different thing: it would freeze that token against the
-                  // next theme change, with nothing to undo it.
-                  const colors = { ...now.colors }
-                  delete colors[row.token]
-                  paint(colors)
-                }}
-              >
-                Reset
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+            </div>
+          )}
+          {saved && (
+            <p className={saved.ok ? 'settings-note theme-saved' : 'settings-warn theme-saved'}>
+              {saved.text}
+            </p>
+          )}
+
+          <Row
+            name="Base"
+            why="What is underneath: the shadows, the scrollbars, and every colour you have not changed."
+          >
+            <div className="settings-choices" role="group" aria-label="Base">
+              {BASES.map((entry) => (
+                <button
+                  key={entry.id}
+                  className={entry.id === themes.customBase ? 'base-choice is-on' : 'base-choice'}
+                  aria-pressed={entry.id === themes.customBase}
+                  onClick={() => pickBase(entry.id)}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+          </Row>
+
+          <ul className="colors-list">
+            {COLOR_ROWS.map((row) => {
+              const set = themes.colors[row.token]
+              const value = set ?? themed[row.token] ?? '#000000'
+              return (
+                <li key={row.token} className={set ? 'colors-row is-set' : 'colors-row'}>
+                  <input
+                    className="colors-swatch"
+                    type="color"
+                    value={value}
+                    aria-label={row.label}
+                    onChange={(event) => paint({ ...themes.colors, [row.token]: event.target.value })}
+                  />
+                  <span className="colors-name">
+                    {row.label}
+                    <span className="colors-hint">{row.hint}</span>
+                  </span>
+                  <span className="colors-value">{value}</span>
+                  <button
+                    className="colors-act"
+                    title="Back to the base's colour"
+                    disabled={!set}
+                    onClick={() => {
+                      // Dropped rather than written with the value it has. Writing
+                      // the current value back would look identical and be a
+                      // different thing: it would freeze that token against the
+                      // next base change, with nothing to undo it.
+                      const colors = { ...themes.colors }
+                      delete colors[row.token]
+                      paint(colors)
+                    }}
+                  >
+                    Reset
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
     </>
+  )
+}
+
+// The theme list: a button that says the theme on, and a menu of the three
+// built in and then the files. Drawn by the app rather than as a native select,
+// whose list is drawn by the desktop and would not wear the theme it offers.
+function ThemePicker({ themes, onPick }: { themes: Themes; onPick: (theme: ThemeChoice) => void }) {
+  const { open, setOpen, box } = useMenu()
+  const pick = (theme: ThemeChoice): void => {
+    setOpen(false)
+    onPick(theme)
+  }
+  const shown =
+    BUILT_IN.find((entry) => entry.id === themes.theme)?.label ??
+    themes.files.find((file) => file.file === themes.theme)?.name ??
+    themes.theme
+
+  return (
+    <div className="theme-picker" ref={box}>
+      <button
+        className="theme-select"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Theme"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="theme-select-name">{shown}</span>
+        <Icon name="chevron-down" />
+      </button>
+      {open && (
+        <div className="theme-menu" role="menu">
+          {BUILT_IN.map((entry) => (
+            <ThemeOption
+              key={entry.id}
+              name={entry.label}
+              on={entry.id === themes.theme}
+              onPick={() => pick(entry.id)}
+            />
+          ))}
+          {themes.files.length > 0 && <div className="theme-menu-line" role="separator" />}
+          {themes.files.map((file) => (
+            <ThemeOption
+              key={file.file}
+              name={file.name}
+              on={file.file === themes.theme}
+              // A file that does not read stays in the list, greyed, saying why.
+              problem={file.problem}
+              title={file.problem ?? (file.author ? `${file.file}, by ${file.author}` : file.file)}
+              onPick={() => pick(file.file)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ThemeOption(props: {
+  name: string
+  on: boolean
+  problem?: string
+  title?: string
+  onPick: () => void
+}) {
+  return (
+    <button
+      className="theme-option"
+      role="menuitemradio"
+      aria-checked={props.on}
+      disabled={props.problem !== undefined}
+      title={props.title}
+      onClick={props.onPick}
+    >
+      <span className="theme-option-tick">{props.on ? <Icon name="check" /> : null}</span>
+      <span className="theme-option-name">{props.name}</span>
+    </button>
   )
 }
 
@@ -406,11 +587,19 @@ function Shortcuts({ now, setNow }: Part) {
 
 /* --- Vault ---------------------------------------------------------------- */
 
-function VaultSection({ now }: { now: SettingsNow }) {
+function VaultSection({ now, setNow }: Part) {
   // Nothing here opens a folder. It asks the window that owns the vault to do
   // it, which is the capture box's argument about cards applied to folders: one
   // road in, or the two roads disagree about which folder is open.
   const ask = (path: string | null): void => void window.api.askVault(path)
+
+  // Written through main and answered with what was kept, the way Card details is.
+  const setOpens = (workspaceOpens: WorkspaceOpens): void => {
+    setNow((was) => (was ? { ...was, workspaceOpens } : was))
+    void window.api
+      .setWorkspaceOpens(workspaceOpens)
+      .then((held) => setNow((was) => (was ? { ...was, workspaceOpens: held } : was)))
+  }
 
   return (
     <>
@@ -427,6 +616,22 @@ function VaultSection({ now }: { now: SettingsNow }) {
         <button className="settings-act settings-other" onClick={() => ask(null)}>
           Choose a folder…
         </button>
+      </Row>
+
+      <Row name="Opening a workspace" why="What shows when you go into a workspace.">
+        <div className="settings-choices" role="group" aria-label="Opening a workspace">
+          {OPENS.map((entry) => (
+            <button
+              key={entry.id}
+              className={entry.id === now.workspaceOpens ? 'opens-choice is-on' : 'opens-choice'}
+              aria-pressed={entry.id === now.workspaceOpens}
+              title={entry.hint}
+              onClick={() => setOpens(entry.id)}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
       </Row>
 
       <p className="settings-group">Folders this app knows</p>

@@ -5,6 +5,7 @@ import { fileUrl } from '../../../shared/image'
 import { resolveLabel } from '../labels'
 import { labelText } from '../../../shared/labels'
 import { dueState, shortDate } from '../dates'
+import { partsOf } from '../links'
 import { Icon } from './Icon'
 
 type Props = { card: Card; workspace: Workspace }
@@ -54,7 +55,32 @@ export function CardTile({ card, workspace }: Props) {
         </p>
       )}
 
-      <p className="card-title">{card.title}</p>
+      {/* An address in the title is a link, the same as one in the description.
+          The tooltip is where it goes: the title may have cut the address in
+          two across a line, and what is on screen is not always all of it. */}
+      <p className="card-title">
+        {partsOf(card.title).map((part, at) =>
+          part.href === null ? (
+            part.text
+          ) : (
+            <a
+              key={at}
+              href={part.href}
+              title={part.href}
+              draggable={false}
+              // The card is the one who follows this, from the press that
+              // finished on it - see SortableCard. The link's own navigation is
+              // turned off rather than left as a second way in: the drag sensor
+              // swallows the click some of the time and lets it through the
+              // rest, and both paths open the browser, so leaving it on means
+              // the address is sometimes asked for twice. Measured: twice.
+              onClick={(event) => event.preventDefault()}
+            >
+              {part.text}
+            </a>
+          )
+        )}
+      </p>
 
       {card.broken && <p className="card-warning">frontmatter did not parse, shown as written</p>}
 

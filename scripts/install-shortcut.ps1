@@ -1,6 +1,8 @@
 # Puts Bothy in the Start Menu and on the Desktop, without packaging anything.
-# There is no .exe: the shortcut runs the electron.exe that npm already
-# downloaded, pointed at this repo.
+# There is no installer: the shortcut runs runtime\Bothy.exe, the electron npm
+# already downloaded under the app's own name (scripts/make-runtime.cjs),
+# pointed at this repo. Under electron.exe itself Task Manager lists the app as
+# "Electron", because Windows names a program after the description in its .exe.
 #
 #   npm run shortcut                     install for the current user
 #   npm run shortcut -- -Icon path.ico   same, with another icon
@@ -231,6 +233,13 @@ if ($Icon -ne '') {
   $Icon = (Resolve-Path -LiteralPath $Icon).Path
 }
 
+# Built, or found already built, before any shortcut is written: a shortcut to
+# an .exe that is not there is worse than no shortcut.
+$runtime = & node (Join-Path $root 'scripts\make-runtime.cjs')
+if ($LASTEXITCODE -ne 0) { throw "runtime\Bothy.exe could not be built" }
+$target = "$runtime".Trim()
+if (-not (Test-Path -LiteralPath $target)) { throw "No executable at $target" }
+
 # Quoted because the repo path may contain spaces, and this is one argument.
 $arguments = '"' + $root + '"'
 $description = $AppName
@@ -249,6 +258,6 @@ if ($Destination -ne '') {
 
 foreach ($place in $places) {
   $lnk = Join-Path $place ($AppName + '.lnk')
-  [BothyShortcut.Link]::Write($lnk, $electron, $arguments, $root, $description, $Icon, $AppId)
+  [BothyShortcut.Link]::Write($lnk, $target, $arguments, $root, $description, $Icon, $AppId)
   Write-Output ("wrote " + $lnk)
 }

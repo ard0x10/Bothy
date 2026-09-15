@@ -1,7 +1,7 @@
-import { BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { aiSettingsNow, changeNoticesNow, setAiOn, setAiWorkspace, setChangeNotices } from './ai'
 import type { AiSettings, ChangeNotices } from '../shared/ai'
-import { cleanColors, type Colors } from '../shared/colors'
+import type { Colors } from '../shared/colors'
 import type { SidebarState } from '../shared/sidebar'
 import { IPC } from '../shared/ipc'
 import type {
@@ -13,7 +13,6 @@ import type {
   RestoreResult,
   SaveResult,
   Tab,
-  Theme,
   TrashEntry,
   Vault
 } from '../shared/types'
@@ -38,7 +37,16 @@ import {
   setCaptureTarget,
   showCapture
 } from './capture'
-import { paintEveryWindow, showSettings } from './settings'
+import { showSettings } from './settings'
+import {
+  openThemesFolder,
+  saveTheme,
+  setCustomBase,
+  setCustomColors,
+  setTheme,
+  themesNow
+} from './themes'
+import type { SaveThemeResult, Themes } from '../shared/themes'
 import {
   deleteTrash,
   readTrash,
@@ -59,6 +67,7 @@ import {
 } from './vault/workspace'
 import type { Background } from '../shared/background'
 import { readCardView, type CardView } from '../shared/cardview'
+import { readWorkspaceOpens, type WorkspaceOpens } from '../shared/opening'
 import {
   knownVaults,
   readState,
@@ -308,6 +317,24 @@ export function registerIpc(window: BrowserWindow): void {
     }
   )
 
+  // A card made from a picture pasted into the Add card box. The picture is
+  // copied into files/ first and the card is written once, with the picture on
+  // its files and as its cover, so there is never a card on disk waiting for
+  // its picture. It is named after the picture.
+  ipcMain.handle(
+    IPC.createImageCard,
+    async (_event, workspacePath: string, bytes: Uint8Array, extension: string): Promise<Card | null> => {
+      if (!IMAGE_EXTENSIONS.includes(extension)) return null
+      try {
+        const title = `image.${extension}`
+        const name = await attachBytes(workspacePath, title, bytes)
+        return await createCard(workspacePath, title, { files: [name], cover: name })
+      } catch {
+        return null
+      }
+    }
+  )
+
   // The only way a path reaches the shell. It says WHICH of the two nos it is
   // giving, because "nothing opened" is also true of a name that was allowed
   // through and simply had no file behind it - and a check that cannot tell
@@ -362,11 +389,11 @@ export function registerIpc(window: BrowserWindow): void {
   // renderer that has not subscribed yet, and the first window of a run hears
   // nothing at all.
   ipcMain.handle(IPC.settingsNow, async (): Promise<SettingsNow> => {
-    const { theme, colors, cardView } = await readState()
+    const { cardView, workspaceOpens } = await readState()
     return {
-      theme: theme ?? 'system',
-      colors: cleanColors(colors),
+      themes: themesNow(),
       cardView: readCardView(cardView),
+      workspaceOpens: readWorkspaceOpens(workspaceOpens),
       capture: captureStatus(),
       vault: current,
       vaults: await knownVaults()
@@ -544,19 +571,15 @@ export function registerIpc(window: BrowserWindow): void {
     withoutWatcher(window, () => trashWorkspace(workspacePath))
   )
 
-  // Theme. Answered from state.json, applied through nativeTheme, and that one
-  // call does all three cases: 'system' hands the question back to the desktop,
-  // and either of the other two pins it. The renderer needs no listener of its
-  // own, because nativeTheme also decides what prefers-color-scheme reports
-  // inside the window - so the stylesheet follows without being told.
-  ipcMain.handle(IPC.setTheme, async (_event, theme: Theme): Promise<void> => {
-    // Anything else is refused rather than stored: this value is read back on
-    // the next launch and handed to Electron, and a bad one would be a window
-    // that opens wrong with nothing on screen to say why.
-    if (theme !== 'system' && theme !== 'light' && theme !== 'dark') return
-    nativeTheme.themeSource = theme
-    await writeState({ theme })
-  })
+  // Themes. See main/themes.ts. Each write answers with the picker as it
+  // stands afterwards, and every window hears the same on themes:changed.
+  ipcMain.handle(IPC.setTheme, (_event, theme: unknown): Promise<Themes> => setTheme(theme))
+  ipcMain.handle(IPC.setCustomBase, (_event, base: unknown): Promise<Themes> => setCustomBase(base))
+  ipcMain.handle(
+    IPC.saveTheme,
+    (_event, name: unknown, colors: unknown): Promise<SaveThemeResult> => saveTheme(name, colors)
+  )
+  ipcMain.handle(IPC.openThemesFolder, (): Promise<boolean> => openThemesFolder())
 
   // Where a card opens. Pulled by the window that owns the vault as it mounts,
   // and pushed to every window whenever it is set.
@@ -571,6 +594,22 @@ export function registerIpc(window: BrowserWindow): void {
     const held = readCardView((await readState()).cardView)
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send(IPC.cardViewChanged, held)
+    }
+    return held
+  })
+
+  // What a workspace opens on. The same road as where a card opens: pulled as
+  // the vault loads, pushed to every window whenever it is set, and a refused
+  // value moves nothing anywhere.
+  ipcMain.handle(IPC.workspaceOpensNow, async (): Promise<WorkspaceOpens> =>
+    readWorkspaceOpens((await readState()).workspaceOpens)
+  )
+
+  ipcMain.handle(IPC.setWorkspaceOpens, async (_event, value: unknown): Promise<WorkspaceOpens> => {
+    if (value === 'kanban' || value === 'last') await writeState({ workspaceOpens: value })
+    const held = readWorkspaceOpens((await readState()).workspaceOpens)
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(IPC.workspaceOpensChanged, held)
     }
     return held
   })
@@ -595,27 +634,15 @@ export function registerIpc(window: BrowserWindow): void {
     return held
   })
 
-  // Colours, step 9. Two rules shape this handler: eleven tokens
-  // rather than all seventeen, and one set laid over whichever theme is on
-  // rather than a set per theme. Whatever the renderer sends is filtered
-  // through the same guard the launch argument goes through, and the filtered
-  // set is handed back so a refused value is visible rather than silent.
+  // The custom colours: eleven tokens, one set, worn while Custom is the
+  // theme. Whatever the renderer sends is filtered through the same guard the
+  // launch argument goes through, and the filtered set is handed back so a
+  // refused value is visible rather than silent.
   //
   // The set replaces rather than merges. The renderer holds the whole thing
   // and sends the whole thing, so a token missing from it is a token the user
   // put back - and resetting everything is this call with an empty object.
-  ipcMain.handle(IPC.setColors, async (_event, colors: unknown): Promise<Colors> => {
-    const clean = cleanColors(colors)
-    await writeState({ colors: clean })
-    // D3. Until there was a second window this could be left to the renderer
-    // that sent it: it had already painted itself, and there was nobody else to
-    // tell. Now the window a colour is CHOSEN in is not the window most of it is
-    // on, so the stored set goes back out to every window - including the one
-    // that sent it, which repaints with what was actually kept rather than with
-    // what it asked for.
-    paintEveryWindow(clean)
-    return clean
-  })
+  ipcMain.handle(IPC.setColors, (_event, colors: unknown): Promise<Colors> => setCustomColors(colors))
 
   // The left panel, D1. Sent when the handle is let go rather than while it is
   // moving, which is the viewport's argument in miniature: a disk write behind

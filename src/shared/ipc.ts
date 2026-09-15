@@ -41,6 +41,8 @@ export const IPC = {
   attachImages: 'files:attachImages',
   // What the clipboard hands over: bytes and a type, and no file behind them.
   attachBytes: 'files:attachBytes',
+  // A card made from a pasted picture, with the picture on it. See main/ipc.ts.
+  createImageCard: 'card:create-from-image',
   saveColumns: 'columns:save',
   createWorkspace: 'workspace:create',
   renameWorkspace: 'workspace:rename',
@@ -70,14 +72,14 @@ export const IPC = {
   // The box asking to be as tall as what is in it. Only the page knows how
   // tall its rows came out and whether a list is open under them.
   captureFit: 'capture:fit',
-  // Theme, step 8 of v0.2. It goes through main because the answer lives in
-  // state.json and because Electron's own nativeTheme is what makes "follow the
-  // system" work - the window frame and the media query both come from it.
-  // Only a write since D3. The read went with the theme control: the one thing
-  // that asked was a picker in the panel catching itself up, and the picker is
-  // in the settings window now, which is handed the theme inside settings:now
-  // along with everything else on the page.
+  // Themes. Every write answers with the whole picker as main read it back, and
+  // themes:changed carries the same thing to every window, whichever one did
+  // the changing or whether a file in the folder moved.
   setTheme: 'theme:set',
+  setCustomBase: 'theme:set-base',
+  saveTheme: 'theme:save',
+  openThemesFolder: 'theme:open-folder',
+  themesChanged: 'themes:changed',
   // Colours, step 9 of v0.2. The write, and since D3 a push back the other way.
   // Until D3 there was only a write and the comment here said why: the window
   // is told its colours as a launch argument, before it paints, so nothing had
@@ -99,6 +101,11 @@ export const IPC = {
   // Main to every window, sent by the handler that stores it, so what arrives
   // is what was kept.
   cardViewChanged: 'cardview:changed',
+  // What a workspace opens on, the kanban or the tab it was left on. Asked
+  // for as the vault loads, and pushed to every window when it is set.
+  workspaceOpensNow: 'workspace-opens:now',
+  setWorkspaceOpens: 'workspace-opens:set',
+  workspaceOpensChanged: 'workspace-opens:changed',
   // Settings, under AI, v0.4 step 9. The page asks for what it shows as it
   // opens, and every change answers with the page again, read back from
   // state.json and the folders rather than patched from what was asked.

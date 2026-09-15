@@ -55,6 +55,7 @@ import { placeIn, targetOf } from '../../shared/capture'
 import { buildSvg, toPng, textBytes } from './canvas-export'
 import { kanbanPng } from './kanban-export'
 import { extensionForType, fileUrl, pastedName } from '../../shared/image'
+import { WORKSPACE_OPENS_DEFAULT, type WorkspaceOpens } from '../../shared/opening'
 import {
   noHistory,
   redo as redoStep,
@@ -143,6 +144,10 @@ type State = {
   // Same idea, for the two other things that get named before they exist.
   composingWorkspace: boolean
   composingColumn: boolean
+  // The column a card was just made in. The board reads it once, takes that
+  // column's scroll to its end so the new card is somewhere it can be seen,
+  // and puts it back to null: news about a moment, not a state the board is in.
+  landedIn: string | null
   trashOpen: boolean
   archiveOpen: boolean
 
@@ -189,6 +194,8 @@ type State = {
   // Held whole rather than as two fields, because it is written back whole and
   // a width that travels without its collapsed flag is the pair drifting.
   sidebar: SidebarState
+  // What a workspace opens on, chosen in Settings under Vault.
+  workspaceOpens: WorkspaceOpens
 
   // Which of the panel's two lists is on, D4. Not part of `sidebar` above and
   // not on disk with it: that pair is a preference the user set, this is where
@@ -374,6 +381,7 @@ type State = {
   composeIn: (columnId: string | null) => void
   composeWorkspace: (on: boolean) => void
   composeColumn: (on: boolean) => void
+  landed: (columnId: string | null) => void
   openTrash: () => void
   closeTrash: () => void
   openArchive: () => void
@@ -398,6 +406,11 @@ type State = {
   openSwitcher: (open: boolean) => void
 
   toggleSidebar: () => void
+  // Shutting it on purpose, which the toggle cannot do: the caller knows the
+  // panel has answered what it was opened for, and a toggle there would open
+  // a panel that was already closed.
+  closeSidebar: () => void
+  setWorkspaceOpens: (value: WorkspaceOpens) => void
   // Opening the panel is part of it. The rail is only on screen while the panel
   // is, so a section chosen from anywhere else - a shortcut, a command - would
   // otherwise set a list nobody can see.
@@ -440,6 +453,7 @@ type State = {
   resolveConflict: (keep: 'mine' | 'theirs') => Promise<void>
   moveToColumn: (cardId: string, columnId: string) => void
   addCard: (columnId: string, title: string, template?: string | null) => Promise<void>
+  addImageCards: (columnId: string, pictures: File[]) => Promise<void>
   saveAsTemplate: () => Promise<void>
   captureCard: (title: string, where?: CaptureWhere | null) => Promise<void>
   trashCard: (cardId: string) => Promise<void>
@@ -460,10 +474,12 @@ function queued(work: () => Promise<void>): Promise<void> {
   return saves
 }
 
-// The tab a workspace was last left on, as read from its workspace.json. Used
-// only when the view moves to a different workspace: a reload triggered by some
-// file changing must not pull the user out of the tab they are looking at.
-function tabOf(vault: Vault | null, path: string | null): Tab {
+// The tab a workspace opens on: the kanban, or the tab it was last left on as
+// read from its workspace.json, whichever Settings says. Used only when the
+// view moves to a different workspace: a reload triggered by some file changing
+// must not pull the user out of the tab they are looking at.
+function tabOf(vault: Vault | null, path: string | null, opens: WorkspaceOpens): Tab {
+  if (opens === 'kanban') return 'kanban'
   return vault?.workspaces.find((w) => w.path === path)?.lastTab ?? 'kanban'
 }
 
@@ -472,8 +488,8 @@ function tabOf(vault: Vault | null, path: string | null): Tab {
 // showing every workspace - so the view is kept. This is also what makes
 // opening a card from the calendar work at all: that goes through select(), and
 // re-deriving the tab there would drop the user back onto a kanban.
-function viewFor(current: View, vault: Vault | null, path: string | null): View {
-  return current === 'calendar' ? current : tabOf(vault, path)
+function viewFor(current: View, vault: Vault | null, path: string | null, opens: WorkspaceOpens): View {
+  return current === 'calendar' ? current : tabOf(vault, path, opens)
 }
 
 // Keeps the chosen workspace pointed at something real after a reload, and
@@ -921,12 +937,14 @@ export const useVault = create<State>((set, get) => ({
   composingIn: null,
   composingWorkspace: false,
   composingColumn: false,
+  landedIn: null,
   trashOpen: false,
   archiveOpen: false,
   filter: NO_FILTER,
   filterOpen: false,
   calendarWorkspaces: [],
   sidebar: window.api.initialSidebar,
+  workspaceOpens: WORKSPACE_OPENS_DEFAULT,
   section: 'workspaces',
   searchQuery: '',
   searchSort: 'relevance',
@@ -1640,7 +1658,7 @@ export const useVault = create<State>((set, get) => ({
     set({
       vault,
       workspacePath,
-      tab: tabOf(vault, workspacePath),
+      tab: tabOf(vault, workspacePath, get().workspaceOpens),
       openId: null,
       draft: null,
       dirty: false,
@@ -1654,8 +1672,19 @@ export const useVault = create<State>((set, get) => ({
   // Opening and closing is one decision, so it goes to disk as it happens. The
   // width it reopens at is the one it had, which is why the whole pair is
   // written rather than the flag on its own.
+  // Only the answer. The tab on screen stays where it is; the next workspace
+  // gone into is what reads it.
+  setWorkspaceOpens: (workspaceOpens) => set({ workspaceOpens }),
+
   toggleSidebar: () => {
     const sidebar = { ...get().sidebar, collapsed: !get().sidebar.collapsed }
+    set({ sidebar })
+    void window.api.setSidebar(sidebar)
+  },
+
+  closeSidebar: () => {
+    if (get().sidebar.collapsed) return
+    const sidebar = { ...get().sidebar, collapsed: true }
     set({ sidebar })
     void window.api.setSidebar(sidebar)
   },
@@ -1702,9 +1731,13 @@ export const useVault = create<State>((set, get) => ({
   },
 
   load: async () => {
-    const vault = await window.api.loadVault()
+    const [vault, workspaceOpens] = await Promise.all([
+      window.api.loadVault(),
+      window.api.workspaceOpensNow()
+    ])
+    set({ workspaceOpens })
     const workspacePath = settle(vault, get().workspacePath)
-    set({ vault, workspacePath, tab: tabOf(vault, workspacePath), loading: false })
+    set({ vault, workspacePath, tab: tabOf(vault, workspacePath, get().workspaceOpens), loading: false })
     // After the vault, not beside it. Main puts a folder on the known list as
     // part of opening it, so a list asked for at the same time as the open is a
     // list asked for before the write - and it came back empty, which is a menu
@@ -1730,7 +1763,7 @@ export const useVault = create<State>((set, get) => ({
     // Only when the ground moved under us - the folder being shown is gone and
     // settle() landed somewhere else. Re-deriving it on every reload would take
     // the user out of the tab they are in every time a file is touched.
-    if (workspacePath !== before) set({ tab: viewFor(get().tab, vault, workspacePath) })
+    if (workspacePath !== before) set({ tab: viewFor(get().tab, vault, workspacePath, get().workspaceOpens) })
 
     const { openId, dirty } = get()
     if (!openId) return
@@ -1756,7 +1789,7 @@ export const useVault = create<State>((set, get) => ({
       set({
         vault,
         workspacePath,
-        tab: tabOf(vault, workspacePath),
+        tab: tabOf(vault, workspacePath, get().workspaceOpens),
         openId: null,
         draft: null,
         dirty: false,
@@ -1775,7 +1808,7 @@ export const useVault = create<State>((set, get) => ({
     if (get().workspacePath === path) return
     if (get().dirty) await get().saveDraft()
     if (get().conflict) return
-    const view = viewFor(get().tab, get().vault, path)
+    const view = viewFor(get().tab, get().vault, path, get().workspaceOpens)
     set({
       workspacePath: path,
       tab: view,
@@ -1843,6 +1876,7 @@ export const useVault = create<State>((set, get) => ({
   composeIn: (columnId) => set({ composingIn: columnId }),
   composeWorkspace: (on) => set({ composingWorkspace: on }),
   composeColumn: (on) => set({ composingColumn: on }),
+  landed: (columnId) => set({ landedIn: columnId }),
   openTrash: () => set({ trashOpen: true }),
   closeTrash: () => set({ trashOpen: false }),
   openArchive: () => set({ archiveOpen: true }),
@@ -2185,6 +2219,10 @@ export const useVault = create<State>((set, get) => ({
       column.id === columnId ? { ...column, cards: [...column.cards, card.id] } : column
     )
     putCard(set, get, card, columns)
+    // Said before the write to disk rather than after it: the card is on screen
+    // now, and the column should arrive at it in the same breath rather than a
+    // disk write later.
+    set({ landedIn: columnId })
     await get().saveColumns(undefined, [card.id])
     // A card made while the filter is on may be born straight into the part of
     // the board that is not drawn. The column already says "1 more hidden";
@@ -2205,6 +2243,56 @@ export const useVault = create<State>((set, get) => ({
           ? `"${card.title}" is hidden by the filter.`
           : null
     })
+  },
+
+  // Pictures pasted into the Add card box, a card for each. Made one after
+  // another so each gets its own name on disk, then put into the column together
+  // and written once. Like addCard, no panel opens: the box stays where it was.
+  addImageCards: async (columnId, pictures) => {
+    const workspace = currentWorkspace(get())
+    if (!workspace) return
+
+    const made: Card[] = []
+    for (const picture of pictures) {
+      const extension = extensionForType(picture.type)
+      if (extension === null) continue
+      const bytes = new Uint8Array(await picture.arrayBuffer())
+      const card = await window.api.createImageCard(workspace.path, bytes, extension)
+      if (card) made.push(card)
+    }
+    if (made.length === 0) {
+      set({ notice: 'That picture could not be added.' })
+      return
+    }
+
+    const now = currentWorkspace(get())
+    if (!now || now.path !== workspace.path) return
+    const ids = made.map((card) => card.id)
+    const columns = now.columns.map((column) =>
+      column.id === columnId ? { ...column, cards: [...column.cards, ...ids] } : column
+    )
+    for (const card of made) putCard(set, get, card, columns)
+    set({ landedIn: columnId })
+    // The pictures are in files/ already. The list a cover is drawn from is told
+    // now rather than when the watcher next looks, or the card would show
+    // without its cover for that long.
+    const { vault } = get()
+    if (vault) {
+      set({
+        vault: {
+          ...vault,
+          workspaces: vault.workspaces.map((one) =>
+            one.path === workspace.path
+              ? { ...one, files: [...new Set([...one.files, ...made.flatMap((card) => card.files)])] }
+              : one
+          )
+        }
+      })
+    }
+    await get().saveColumns(undefined, ids)
+    const { filter } = get()
+    const hidden = made.filter((card) => isOn(filter) && !matches(card, filter)).length
+    set({ notice: hidden > 0 ? `${hidden === 1 ? 'The new card is' : `${hidden} new cards are`} hidden by the filter.` : null })
   },
 
   // A card caught from the quick capture box, in the workspace and column the

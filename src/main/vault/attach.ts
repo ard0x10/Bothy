@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { hashBytes, hashFile } from './hash'
+import { oneNameAtATime } from './writer'
 
 // Attachments are copied into the workspace, never referenced where they sit.
 // The reason is the promise the whole format is built on: a workspace has to be
@@ -49,9 +50,11 @@ export async function attachFile(workspacePath: string, source: string): Promise
   await mkdir(dir, { recursive: true })
 
   const wanted = tidy(basename(source))
-  const name = await freeName(dir, wanted)
-  await copyFile(source, join(dir, name))
-  return name
+  return oneNameAtATime(dir, async () => {
+    const name = await freeName(dir, wanted)
+    await copyFile(source, join(dir, name))
+    return name
+  })
 }
 
 // Accents and the characters Windows will not take come out; the extension is
@@ -179,12 +182,15 @@ export async function attachImage(workspacePath: string, source: string): Promis
   await mkdir(dir, { recursive: true })
 
   const size = (await stat(source)).size
-  const found = await sameContent(dir, size, () => hashFile(source))
-  if (found !== null) return found
-
-  const name = await freeName(dir, tidy(basename(source)))
-  await copyFile(source, join(dir, name))
-  return name
+  // The look for the same bytes is inside the turn too, or two copies of one
+  // picture arriving together would both find nothing and both be written.
+  return oneNameAtATime(dir, async () => {
+    const found = await sameContent(dir, size, () => hashFile(source))
+    if (found !== null) return found
+    const name = await freeName(dir, tidy(basename(source)))
+    await copyFile(source, join(dir, name))
+    return name
+  })
 }
 
 // The same for bytes with no file behind them, which is what the clipboard
@@ -199,10 +205,11 @@ export async function attachBytes(
   const dir = filesDir(workspacePath)
   await mkdir(dir, { recursive: true })
 
-  const found = await sameContent(dir, bytes.length, async () => hashBytes(bytes))
-  if (found !== null) return found
-
-  const name = await freeName(dir, tidy(wanted))
-  await writeFile(join(dir, name), bytes)
-  return name
+  return oneNameAtATime(dir, async () => {
+    const found = await sameContent(dir, bytes.length, async () => hashBytes(bytes))
+    if (found !== null) return found
+    const name = await freeName(dir, tidy(wanted))
+    await writeFile(join(dir, name), bytes)
+    return name
+  })
 }

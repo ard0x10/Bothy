@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { Card } from '../../shared/types'
 import { parseCard, serializeCard } from './format'
 import { newId } from '../../shared/id'
-import { writeText } from './writer'
+import { oneNameAtATime, writeText } from './writer'
 
 // The file name comes from the title and then never changes again. Renaming on
 // every edit would break links other programs hold, and a folder full of ids is
@@ -49,7 +49,10 @@ export async function createCard(
   seed: Partial<Card> = {}
 ): Promise<Card> {
   const dir = join(workspacePath, 'kanban', 'cards')
+  return oneNameAtATime(dir, () => writeNewCard(dir, title, seed))
+}
 
+async function writeNewCard(dir: string, title: string, seed: Partial<Card>): Promise<Card> {
   const file = await freeFile(dir, slug(title))
   const card: Card = {
     tags: [],

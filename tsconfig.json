@@ -15,5 +15,5 @@
     "isolatedModules": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "electron.vite.config.ts"]
+  "include": ["src", "tests", "electron.vite.config.ts"]
 }

@@ -1,6 +1,6 @@
 {
   "name": "bothy",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Local-first kanban and canvas workspace",
   "author": "ard0x10",
@@ -19,7 +19,12 @@
     "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcut.ps1",
     "typecheck": "tsc --noEmit",
     "docs": "esbuild src/guide/write.ts --bundle --platform=node --format=cjs --outfile=out/guide/write.cjs && node out/guide/write.cjs",
-    "build:mcp": "esbuild src/mcp/index.ts --bundle --platform=node --format=cjs --target=node20 --outfile=out/mcp/bothy-mcp.cjs"
+    "build:mcp": "esbuild src/mcp/index.ts --bundle --platform=node --format=cjs --target=node20 --outfile=out/mcp/bothy-mcp.cjs",
+    "test": "npm run test:unit && npm run test:app && npm run test:mcp",
+    "test:mcp": "npm run build:mcp && esbuild tests/mcp.test.ts --bundle --platform=node --format=cjs --external:electron --outfile=out/tests/mcp.test.cjs --sourcemap && node --test --enable-source-maps out/tests/mcp.test.cjs",
+    "test:unit": "esbuild tests/vault.test.ts --bundle --platform=node --format=cjs --outfile=out/tests/vault.test.cjs --sourcemap && node --test --enable-source-maps out/tests/vault.test.cjs",
+    "test:app": "npm run build && npm run build:mcp && esbuild tests/app.test.ts --bundle --platform=node --format=cjs --external:electron --outfile=out/tests/app.test.cjs --sourcemap && electron out/tests/app.test.cjs",
+    "test:shortcut": "npm run build && esbuild tests/shortcut.test.ts --bundle --platform=node --format=cjs --outfile=out/tests/shortcut.test.cjs --sourcemap && node --test --enable-source-maps out/tests/shortcut.test.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
@@ -43,6 +48,7 @@
     "electron": "44.2.0",
     "electron-vite": "5.0.0",
     "esbuild": "0.25.12",
+    "rcedit": "5.0.2",
     "typescript": "7.0.2",
     "vite": "7.3.6"
   }

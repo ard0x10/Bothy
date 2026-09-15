@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom'
 import { useVault } from '../store'
 import { APP_NAME } from '../../../shared/app'
 import { fileName } from '../../../shared/paths'
+import { stillness } from '../motion'
 import { NameBox } from './NameBox'
 import { SearchPane } from './SearchPane'
 import { Icon, type IconName } from './Icon'
@@ -32,16 +33,32 @@ const SECTIONS: Section[] = [
 // into where it stops, so the hand that pressed sees it answer at once.
 const SLIDE_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 
-// Someone who has told the system they want less movement gets the panel the
-// way it used to be: there, or not.
-const stillness = (): boolean =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+// Picking a workspace from the panel is what the panel was opened for, so it
+// gets out of the way once it has answered: the board that was chosen is what
+// the window is for, not the list it was chosen from.
+//
+// Only when the pick actually moves. Pressing the row you are already on
+// changes nothing, and a panel that shut on that would be answering a question
+// nobody asked. Shut after the move rather than with it, because leaving a
+// workspace can be refused - the last keystrokes may have hit a clash on disk -
+// and a panel that closed on a move that did not happen would be telling the
+// user they had gone somewhere they had not.
+function useGoTo(): (path: string) => void {
+  const current = useVault((state) => state.workspacePath)
+  const select = useVault((state) => state.select)
+  const closeSidebar = useVault((state) => state.closeSidebar)
+  return (path) => {
+    if (path === current) return
+    void select(path).then(() => {
+      if (useVault.getState().workspacePath === path) closeSidebar()
+    })
+  }
+}
 
 export function Sidebar() {
   const vault = useVault((state) => state.vault)
   const current = useVault((state) => state.workspacePath)
-  const select = useVault((state) => state.select)
+  const goTo = useGoTo()
   const openTrash = useVault((state) => state.openTrash)
   const openArchive = useVault((state) => state.openArchive)
   const menuOpen = useVault((state) => state.vaultMenuOpen)
@@ -300,7 +317,7 @@ export function Sidebar() {
                         className={
                           workspace.path === current ? 'sidebar-item is-current' : 'sidebar-item'
                         }
-                        onClick={() => void select(workspace.path)}
+                        onClick={() => goTo(workspace.path)}
                       >
                         {workspace.name}
                       </button>
@@ -395,7 +412,7 @@ export function Sidebar() {
 function Bookmarks() {
   const vault = useVault((state) => state.vault)
   const current = useVault((state) => state.workspacePath)
-  const select = useVault((state) => state.select)
+  const goTo = useGoTo()
   const setBookmark = useVault((state) => state.setBookmark)
   const marked = vault?.workspaces.filter((workspace) => workspace.bookmarked === true) ?? []
 
@@ -415,7 +432,7 @@ function Bookmarks() {
         <li key={workspace.path} className="sidebar-mark-row">
           <button
             className={workspace.path === current ? 'sidebar-mark is-current' : 'sidebar-mark'}
-            onClick={() => void select(workspace.path)}
+            onClick={() => goTo(workspace.path)}
           >
             {workspace.name}
           </button>

@@ -5,9 +5,11 @@ import type { EditingItem } from '../shared/editing'
 import type { ExportResult, ImportResult } from '../shared/transfer'
 import type { Viewport } from '../shared/viewport'
 import { colorsFromArguments, type Colors } from '../shared/colors'
+import type { Base, SaveThemeResult, ThemeChoice, Themes } from '../shared/themes'
 import { sidebarFromArguments, type SidebarState } from '../shared/sidebar'
 import type { SettingsNow } from '../shared/settings'
 import type { CardView } from '../shared/cardview'
+import type { WorkspaceOpens } from '../shared/opening'
 import type { Background } from '../shared/background'
 import type { AiChange } from '../shared/aitrail'
 import type { AiSettings, ChangeNotices } from '../shared/ai'
@@ -21,7 +23,6 @@ import type {
   RestoreResult,
   SaveResult,
   Tab,
-  Theme,
   TrashEntry,
   Vault,
   VaultChange
@@ -54,6 +55,10 @@ const api = {
     title: string,
     template: string | null = null
   ): Promise<Card | null> => ipcRenderer.invoke(IPC.createCard, workspacePath, title, template),
+  // A card from a picture's bytes, with the picture on it and as its cover.
+  // Null when the picture could not be written.
+  createImageCard: (workspacePath: string, bytes: Uint8Array, extension: string): Promise<Card | null> =>
+    ipcRenderer.invoke(IPC.createImageCard, workspacePath, bytes, extension),
   // Answers with the file name it wrote inside templates/.
   saveTemplate: (workspacePath: string, card: Card): Promise<string> =>
     ipcRenderer.invoke(IPC.saveTemplate, workspacePath, card),
@@ -160,10 +165,20 @@ const api = {
   // An empty name takes the note off the colour again.
   setWorkspaceLabel: (workspacePath: string, key: string, name: string): Promise<void> =>
     ipcRenderer.invoke(IPC.setWorkspaceLabel, workspacePath, key, name),
-  // Theme, step 8 of v0.2. Read once on the way up and written whenever the
-  // control is used; the stylesheet is not told anything, because nativeTheme
-  // moves prefers-color-scheme underneath it.
-  setTheme: (theme: Theme): Promise<void> => ipcRenderer.invoke(IPC.setTheme, theme),
+  // Themes. The stylesheet is not told anything about the base, because
+  // nativeTheme moves prefers-color-scheme underneath it; the colours arrive
+  // on onColors like any others.
+  setTheme: (theme: ThemeChoice): Promise<Themes> => ipcRenderer.invoke(IPC.setTheme, theme),
+  setCustomBase: (base: Base): Promise<Themes> => ipcRenderer.invoke(IPC.setCustomBase, base),
+  saveTheme: (name: string, colors: Colors): Promise<SaveThemeResult> =>
+    ipcRenderer.invoke(IPC.saveTheme, name, colors),
+  // False when the desktop would not open it.
+  openThemesFolder: (): Promise<boolean> => ipcRenderer.invoke(IPC.openThemesFolder),
+  onThemes: (listener: (themes: Themes) => void): (() => void) => {
+    const wrapped = (_event: unknown, themes: Themes): void => listener(themes)
+    ipcRenderer.on(IPC.themesChanged, wrapped)
+    return () => ipcRenderer.off(IPC.themesChanged, wrapped)
+  },
   // Colours, step 9 of v0.2. Read from the arguments main built this window
   // with rather than asked for over ipc: this value is already here when the
   // preload runs, which is before any page script and before the first frame,
@@ -190,6 +205,15 @@ const api = {
     const wrapped = (_event: unknown, view: CardView): void => listener(view)
     ipcRenderer.on(IPC.cardViewChanged, wrapped)
     return () => ipcRenderer.off(IPC.cardViewChanged, wrapped)
+  },
+  // What a workspace opens on. Asked for as the vault loads, then followed.
+  workspaceOpensNow: (): Promise<WorkspaceOpens> => ipcRenderer.invoke(IPC.workspaceOpensNow),
+  setWorkspaceOpens: (value: WorkspaceOpens): Promise<WorkspaceOpens> =>
+    ipcRenderer.invoke(IPC.setWorkspaceOpens, value),
+  onWorkspaceOpens: (listener: (value: WorkspaceOpens) => void): (() => void) => {
+    const wrapped = (_event: unknown, value: WorkspaceOpens): void => listener(value)
+    ipcRenderer.on(IPC.workspaceOpensChanged, wrapped)
+    return () => ipcRenderer.off(IPC.workspaceOpensChanged, wrapped)
   },
   /* --- Settings, under AI, v0.4 step 9 ------------------------------------- */
   // Each change answers with the whole page again, as main read it back.

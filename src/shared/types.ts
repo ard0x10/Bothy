@@ -16,12 +16,6 @@ export type Tab = (typeof TABS)[number]
 // does not change, and the calendar dies with the window the way a filter does.
 export type View = Tab | 'calendar'
 
-// What the user picked in the theme control. 'system' is the default and means
-// the app follows the desktop; the other two pin it. Kept out of the vault: it
-// is an app-wide setting, and step 8 offers all three rather than one or the
-// other.
-export type Theme = 'system' | 'light' | 'dark'
-
 // One of the six colours a workspace can put on a card, or a name somebody
 // wrote before the six. `key` is the colour's own word and is what the card's file
 // carries; `name` is the note a person hung on that colour, empty when none was

@@ -4,7 +4,8 @@
 
 <h1 align="center">Bothy</h1>
 
-<p align="center">A local-first kanban and canvas, kept as plain files in a folder you own. AI agents can work on it through MCP.</p>
+<p align="center">A local-first kanban and canvas, kept as plain files in a folder you own.<br>
+An AI agent can work on it too, through its built-in MCP server, if you let it.</p>
 
 ![A Bothy workspace with four columns of cards](docs/images/board.png)
 
@@ -12,44 +13,48 @@
 
 Bothy is a desktop app for planning work. Each workspace has a kanban board and a
 canvas. Everything lives in a folder on your disk as Markdown and JSON, so it can be
-read, versioned and backed up with the tools you already use, and an AI agent can work
-on it too, through its built-in MCP server, if you let it.
+read, versioned and backed up with the tools you already use.
 
 No account, no server, no sync. Close the app and your files are still just files.
 
-## What is in v0.4
+What each version brought is on the
+[releases page](https://github.com/ard0x10/Bothy/releases).
 
-**Kanban**
-- Vaults and workspaces, each workspace a folder with its own board
-- Cards as Markdown files with frontmatter: tags in six colours, start and due dates,
-  priority, checklists, attachments, cover colours or pictures, custom fields
-- Drag cards and columns, column limits, archive and trash
-- Search, a command palette, a filter bar and card templates
-- A calendar of every dated card; dragging a bar moves its dates
-- Quick capture from anywhere with a global shortcut while Bothy is running
-- Light and dark themes, with the main colours adjustable in Settings
-- Export a board as a PNG
+## The board
+
+A vault holds workspaces, and each workspace is a folder with its own board. Cards carry
+tags, dates, priority, checklists, attachments, custom fields and a cover the board
+wears, and they move between columns by hand. There is a search across the whole vault,
+a command palette and a filter bar, a global shortcut that takes a note down without
+leaving whatever you were in, and a board can be sent out as a PNG. Dark, Light and
+Custom sit in Settings, beside any theme file you have put in the folder
+(see [Themes](#themes)).
+
+## The calendar
 
 ![The calendar, with dated cards drawn as bars across the month](docs/images/calendar.png)
 
-**Canvas**
-- Boxes in several shapes, text, pen and highlighter, eraser, pictures
-- Arrows that tie to objects and follow them when they move
-- Selection, copy, undo and redo
-- Import and export
+Every dated card in the vault, drawn as a bar across the days it covers. Dragging a bar
+moves the card's dates, and the calendar narrows with a filter of its own.
+
+## The canvas
 
 ![A site map drawn on the canvas with boxes, arrows and a hand drawn circle](docs/images/canvas.png)
 
-**AI access**
-- A built-in MCP server: an agent can read the board and the canvas, add and move
-  cards, and draw on the canvas
-- Off by default. You choose in Settings, under AI, which workspaces an agent may use
-- Everything an agent removes goes to the trash, and its changes show a short notice
-  that can be turned off
-- For agents without MCP, [`docs/format.md`](docs/format.md) describes the files
-  so they can be edited directly
+Every workspace comes with a canvas: boxes in several shapes, text, a pen and a
+highlighter, an eraser, pictures. Arrows tie to objects and follow them when they move.
+It selects, copies, undoes and redoes, and a canvas can be sent to somebody and brought
+back on another machine.
+
+## An agent, if you let one in
 
 ![A notice saying an agent added a card to Backlog, with the new card at the top of the column](docs/images/ai.png)
+
+Bothy carries an MCP server. An agent can read the board and the canvas, add and move
+cards, and draw. It is off until you turn it on in Settings, under AI, and you tick the
+workspaces it may use one at a time. Everything an agent removes goes to the trash, and
+its changes show a short notice that can be turned off. For agents without MCP,
+[`docs/format.md`](docs/format.md) describes the files well enough to edit them directly.
 
 ## Getting started
 
@@ -77,6 +82,10 @@ npm run shortcut
 This puts Bothy in the Start Menu and on the Desktop, with its icon, and it can be
 pinned to the taskbar. The shortcut runs the app from this folder, so keep the folder
 where it is.
+
+The shortcut starts `runtime\Bothy.exe`, Electron under Bothy's name, so Task Manager
+lists the app as Bothy. After an update that brings a new Electron, run
+`npm run shortcut` again.
 
 ### Connecting an agent
 
@@ -139,6 +148,43 @@ Numbers are in the **finance sheet**, not here.
 
 Bothy's own settings (theme, colours, the last vault, AI access) are kept outside the
 vault, in `%APPDATA%\bothy` on Windows.
+
+## Themes
+
+Settings, under Appearance, lists Dark, Light and Custom, then every theme file in the
+themes folder. The folder button beside the list opens it (`%APPDATA%\bothy\themes` on
+Windows). A file put there shows in the list straight away, and a change to the file in
+use shows on the window as soon as it is saved.
+
+A theme is one `.json` file:
+
+```json
+{
+  "bothyTheme": 1,
+  "name": "Harbour",
+  "author": "someone",
+  "base": "dark",
+  "colors": {
+    "bg-app": "#141b22",
+    "bg-column": "#1b242d",
+    "bg-card": "#26323d",
+    "accent": "#e6a15c"
+  }
+}
+```
+
+- `base` is `dark` or `light`. It gives the shadows, the scrollbars and every colour the
+  file leaves out.
+- `colors` takes any of these, each as `#rrggbb`: `bg-app` (the window), `bg-column`
+  (columns), `bg-card` (cards and sheets), `bg-card-hover` (a card under the pointer),
+  `text`, `text-dim` (quiet text), `border`, `accent`, `on-accent` (text on the accent),
+  `late` (overdue) and `soon` (due soon).
+- `name` is what the list shows, and the file name stands in without it. `author` is
+  optional.
+
+A file that does not read stays in the list, greyed, and says what is wrong with it.
+To make one from the app, choose Custom, set the colours and the base, and press
+**Save as theme**.
 
 ## Platform
 

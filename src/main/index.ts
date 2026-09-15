@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { APP_ID, APP_NAME } from '../shared/app'
 import { closeVaultWatcher, registerIpc } from './ipc'
 import { watchAiTrail } from './aitrail'
@@ -8,7 +8,8 @@ import { registerCapture, releaseCapture } from './capture'
 import { closeSettings } from './settings'
 import { ICON } from './icon'
 import { privilegeImageScheme, registerImageProtocol } from './images'
-import { colorsNow, readState, sidebarNow } from './state'
+import { sidebarNow } from './state'
+import { closeThemesWatcher, groundColor, loadThemes, watchThemes, wornColors } from './themes'
 import { colorsArgument } from '../shared/colors'
 import { sidebarArgument } from '../shared/sidebar'
 
@@ -25,11 +26,10 @@ function createWindow(): void {
     minHeight: 600,
     title: APP_NAME,
     icon: ICON,
-    // The ground the frame paints before the page does. It follows a custom
-    // --bg-app when there is one (step 9), because a window whose own ground
-    // disagrees with the page shows the difference for exactly as long as the
-    // load takes.
-    backgroundColor: colorsNow()['bg-app'] ?? '#16161a',
+    // The ground the frame paints before the page does. It follows the theme's
+    // --bg-app, because a window whose own ground disagrees with the page shows
+    // the difference for exactly as long as the load takes.
+    backgroundColor: groundColor(),
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -42,7 +42,7 @@ function createWindow(): void {
       // D1 travels the same way and for the same reason: a panel saved at 380
       // that paints once at 210 and jumps is the flash this road exists to
       // avoid.
-      additionalArguments: [colorsArgument(colorsNow()), sidebarArgument(sidebarNow())]
+      additionalArguments: [colorsArgument(wornColors()), sidebarArgument(sidebarNow())]
     }
   })
 
@@ -103,10 +103,10 @@ app.whenReady().then(async () => {
   // and what prefers-color-scheme reports from this, so setting it late means
   // the window opens in the wrong theme and corrects itself a frame later -
   // which is the flash every themed app is judged by.
-  // Also fills the colour cache the window is about to be built from, which is
-  // why it stays a single read rather than one per thing it answers.
-  const { theme } = await readState()
-  if (theme === 'light' || theme === 'dark') nativeTheme.themeSource = theme
+  // Also works out the colours the window is about to be built with, and reads
+  // state.json on the way, which fills the caches the window is built from.
+  await loadThemes()
+  void watchThemes()
   // Without this the taskbar files our window under electron.exe, and pinning
   // it produces a shortcut that launches Electron with no app. It has to be set
   // before the first window exists.
@@ -120,5 +120,5 @@ app.on('window-all-closed', () => {
   // after the last window goes.
   releaseCapture()
   closeSettings()
-  void closeVaultWatcher().finally(() => app.quit())
+  void Promise.all([closeVaultWatcher(), closeThemesWatcher()]).finally(() => app.quit())
 })
