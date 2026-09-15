@@ -6,6 +6,8 @@
 
 <p align="center">A local-first kanban and canvas, kept as plain files in a folder you own.</p>
 
+![A Bothy workspace with four columns of cards](docs/images/board.png)
+
 ---
 
 Bothy is a desktop app for planning work. Each workspace has a kanban board and a
@@ -28,11 +30,15 @@ No account, no server, no sync. Close the app and your files are still just file
 - Light and dark themes, with the main colours adjustable in Settings
 - Export a board as a PNG
 
+![The calendar, with dated cards drawn as bars across the month](docs/images/calendar.png)
+
 **Canvas**
 - Boxes in several shapes, text, pen and highlighter, eraser, pictures
 - Arrows that tie to objects and follow them when they move
 - Selection, copy, undo and redo
 - Import and export
+
+![A site map drawn on the canvas with boxes, arrows and a hand drawn circle](docs/images/canvas.png)
 
 **AI access**
 - A built-in MCP server: an agent can read the board and the canvas, add and move
@@ -42,6 +48,8 @@ No account, no server, no sync. Close the app and your files are still just file
   that can be turned off
 - For agents without MCP, [`docs/format.md`](docs/format.md) describes the files
   so they can be edited directly
+
+![A notice saying an agent added a card to Backlog, with the new card at the top of the column](docs/images/ai.png)
 
 ## Getting started
 
@@ -93,6 +101,41 @@ My Vault/
 
 Cards are Markdown with YAML frontmatter, and any key Bothy does not know is kept as
 it is. The full format is in [`docs/format.md`](docs/format.md).
+
+![An open card with dates, a description, a checklist and a custom field](docs/images/card.png)
+
+That card, on disk:
+
+```md
+---
+id: k_a201
+title: New pricing page
+cover: "#5b7cfa"
+tags:
+  - blue
+  - purple
+start: 2026-09-14
+due: 2026-09-19
+priority: high
+checklists:
+  - name: Checklist
+    items:
+      - text: Three plans, one table
+        done: true
+      - text: Yearly and monthly toggle
+        done: true
+      - text: Copy review
+        done: false
+      - text: Mobile layout
+        done: false
+created: 2026-09-10
+owner: Sam
+---
+
+Keep it to one screen on a laptop. The table has to work on a phone.
+
+Numbers are in the **finance sheet**, not here.
+```
 
 Bothy's own settings (theme, colours, the last vault, AI access) are kept outside the
 vault, in `%APPDATA%\bothy` on Windows.
