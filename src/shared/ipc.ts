@@ -26,6 +26,10 @@ export const IPC = {
   createCard: 'card:create',
   saveTemplate: 'template:save',
   trashCard: 'card:trash',
+  // A card, or a whole column of them, going to another workspace of the same
+  // vault, v0.5. Main moves the files and the pictures they name; which column
+  // the card lands in is the window's, like every other placing.
+  moveCards: 'card:move',
   attachFiles: 'files:attach',
   openFile: 'files:open',
   // The Add button on a card's Files, the other door beside a drop. Any file at
@@ -47,8 +51,16 @@ export const IPC = {
   createWorkspace: 'workspace:create',
   renameWorkspace: 'workspace:rename',
   setWorkspaceTab: 'workspace:tab',
+  // Which workspace a vault was left on, read as it opens and written each
+  // time another one is gone into.
+  lastWorkspace: 'workspace:last',
+  setLastWorkspace: 'workspace:set-last',
   // The board's ground, step 5 of the kanban's look. One key in workspace.json.
   setWorkspaceBackground: 'workspace:background',
+  // One of the pictures the app ships with, copied into the workspace's files/
+  // so the ground travels with the folder. Answers with the name it took there,
+  // which is the name workspace.json then carries.
+  attachStockPhoto: 'background:photo',
   // A workspace in the Bookmarks section. One key in workspace.json, so
   // the mark goes wherever the folder goes and survives a rename.
   setWorkspaceBookmark: 'workspace:bookmark',

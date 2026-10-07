@@ -8,6 +8,7 @@ import type {
   CaptureTarget,
   CaptureWhere,
   Card,
+  CardMoved,
   ColumnsSeen,
   OpenResult,
   RestoreResult,
@@ -18,12 +19,14 @@ import type {
 } from '../shared/types'
 import type { CanvasFile, CanvasObject, CanvasWrite } from '../shared/canvas'
 import { attachBytes, attachFile, attachImage, resolveAttachment } from './vault/attach'
+import { stockPhotoFile } from './images'
 import { readCanvas, writeCanvasOver } from './vault/canvas'
 import { writeHands } from './editing'
 import { coverColor } from './cover'
 import { embedFiles, exportCanvas, importCanvas, saveBytes } from './transfer'
 import { writeColumnsOver, type ColumnsFile } from './vault/columns'
 import { createCard } from './vault/create'
+import { moveCards } from './vault/move'
 import { serializeCard } from './vault/format'
 import { readVault } from './vault/store'
 import { cardSeed, readTemplate, saveTemplate } from './vault/template'
@@ -70,9 +73,11 @@ import { readCardView, type CardView } from '../shared/cardview'
 import { readWorkspaceOpens, type WorkspaceOpens } from '../shared/opening'
 import {
   knownVaults,
+  readLastWorkspace,
   readState,
   readWorkspaceViewport,
   rememberOpenedVault,
+  writeLastWorkspace,
   writeSidebar,
   writeState,
   writeWorkspaceViewport
@@ -436,6 +441,15 @@ export function registerIpc(window: BrowserWindow): void {
     trashCard(card.file, workspacePath)
   )
 
+  // A card, or a column's worth of them, into another workspace of this vault.
+  // See main/vault/move.ts: the files and the pictures they name are its work,
+  // and where the cards land on the board is the window's.
+  ipcMain.handle(
+    IPC.moveCards,
+    async (_event, cards: Card[], from: string, to: string): Promise<CardMoved[]> =>
+      moveCards(cards, from, to)
+  )
+
   // Held to what the window last read, and merged over what changed since. v0.4
   // step 6: see writeColumnsOver.
   ipcMain.handle(
@@ -539,9 +553,24 @@ export function registerIpc(window: BrowserWindow): void {
       createWorkspace(vaultPath, name)
   )
 
-  ipcMain.handle(IPC.renameWorkspace, async (_event, workspacePath: string, name: string) =>
-    renameWorkspace(workspacePath, name)
+  // Told to every window afterwards, because the settings window lists the
+  // workspaces by name under AI and reads them again only when it hears that
+  // the vault moved. Without it the old name stays on that page until it is
+  // closed and opened.
+  ipcMain.handle(IPC.renameWorkspace, async (_event, workspacePath: string, name: string) => {
+    await renameWorkspace(workspacePath, name)
+    await tellVault()
+  })
+
+  ipcMain.handle(
+    IPC.lastWorkspace,
+    async (_event, vaultPath: string): Promise<string | null> => readLastWorkspace(vaultPath)
   )
+
+  ipcMain.handle(IPC.setLastWorkspace, async (_event, vaultPath: unknown, workspacePath: unknown) => {
+    if (typeof vaultPath !== 'string' || typeof workspacePath !== 'string') return
+    await writeLastWorkspace(vaultPath, workspacePath)
+  })
 
   ipcMain.handle(IPC.setWorkspaceTab, async (_event, workspacePath: string, tab: Tab) =>
     setWorkspaceTab(workspacePath, tab)
@@ -552,6 +581,20 @@ export function registerIpc(window: BrowserWindow): void {
     async (_event, workspacePath: string, background: Background | null) =>
       setWorkspaceBackground(workspacePath, background)
   )
+
+  // A shipped picture into the workspace's files/. attachImage settles it by
+  // content, so choosing the same one twice keeps the one copy already there.
+  ipcMain.handle(IPC.attachStockPhoto, async (_event, workspacePath: string, photo: string) => {
+    const file = stockPhotoFile(photo)
+    if (file === null) return null
+    try {
+      return await attachImage(workspacePath, file)
+    } catch {
+      // The build is missing its pictures, or the folder cannot be written to.
+      // Null, and the window leaves the ground as it was.
+      return null
+    }
+  })
 
   ipcMain.handle(IPC.setWorkspaceBookmark, async (_event, workspacePath: string, on: unknown) =>
     setWorkspaceBookmark(workspacePath, on === true)

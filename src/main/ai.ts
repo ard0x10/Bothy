@@ -6,6 +6,7 @@ import {
   connectText,
   readAiAccess,
   readChangeNotices,
+  setupPrompt,
   type AiConnect,
   type AiSettings,
   type AiVaultRow,
@@ -70,7 +71,8 @@ function connection(): AiConnect {
   const env: Record<string, string> = { ELECTRON_RUN_AS_NODE: '1' }
   const own = app.getPath('userData')
   if (!samePath(own, userDataDir({ ...process.env, BOTHY_USER_DATA: '' }))) env.BOTHY_USER_DATA = own
-  return { ...connectText(process.execPath, server, env, process.platform), server, built: existsSync(server) }
+  const text = connectText(process.execPath, server, env, process.platform)
+  return { ...text, prompt: setupPrompt(text.json, text.command), server, built: existsSync(server) }
 }
 
 export function setAiOn(on: boolean): Promise<AiSettings> {

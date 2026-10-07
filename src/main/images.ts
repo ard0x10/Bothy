@@ -1,6 +1,8 @@
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
-import { FILE_SCHEME, fileUrlParts } from '../shared/image'
+import { FILE_SCHEME, fileUrlParts, stockUrlName } from '../shared/image'
+import { PHOTO_PRESETS } from '../shared/background'
 import { resolveAttachment } from './vault/attach'
 
 // How the window gets at an image without being given the file system. Step 8
@@ -45,8 +47,33 @@ export function privilegeImageScheme(): void {
   ])
 }
 
+// One of the pictures the app ships with, by name. Null for a name that is not
+// on the list: the list is the whole of what this folder may hand out, so a
+// name worked out from anywhere else resolves to nothing rather than to a file
+// that happens to sit beside them.
+//
+// Bundled into out/main/index.js, so __dirname is out/main and the repo root is
+// two up - the same walk the icon makes.
+export function stockPhotoFile(name: string): string | null {
+  return PHOTO_PRESETS.includes(name) ? join(__dirname, '../../resources/backgrounds', name) : null
+}
+
 export function registerImageProtocol(): void {
   protocol.handle(FILE_SCHEME, async (request) => {
+    // The shipped pictures, which belong to no workspace. Tried first because
+    // the two hosts cannot both answer: a stock url has one part in its path
+    // and a workspace url has two.
+    const stock = stockUrlName(request.url)
+    if (stock !== null) {
+      const file = stockPhotoFile(stock)
+      if (file === null) return new Response('', { status: 403 })
+      try {
+        return await net.fetch(pathToFileURL(file).toString())
+      } catch {
+        return new Response('', { status: 404 })
+      }
+    }
+
     const parts = fileUrlParts(request.url)
     // Not one of ours. Nothing is looked up, because working out what a
     // half-valid url might have meant is how a path check gets talked round.

@@ -75,8 +75,33 @@ export type IconName =
   // More things held than the bar's head lists one by one. Three boxes
   // stepped back, so it reads as a pile rather than as one more shape.
   | 'stack'
+  // The three the settings window names its sections with, v0.5. A circle with
+  // one half filled for how the app looks, a keycap for the keys, and a mark
+  // for what an agent does: a small star and a smaller one beside it, which is
+  // the one thing here that is a sign rather than a picture of the thing.
+  | 'contrast'
+  | 'keyboard'
+  | 'spark'
 
 const DRAWN: Record<IconName, ReactNode> = {
+  contrast: (
+    <>
+      <circle cx="8" cy="8" r="5.75" />
+      <path d="M8 2.25a5.75 5.75 0 0 1 0 11.5z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  keyboard: (
+    <>
+      <rect x="1.75" y="4" width="12.5" height="8" rx="1.5" />
+      <path d="M4.25 6.5h.01M7 6.5h.01M9.75 6.5h.01M5.25 9.25h5.5" />
+    </>
+  ),
+  spark: (
+    <>
+      <path d="M6 2.25l1.2 3.05L10.25 6.5 7.2 7.7 6 10.75 4.8 7.7 1.75 6.5 4.8 5.3z" />
+      <path d="M11.5 9.25l.6 1.65 1.65.6-1.65.6-.6 1.65-.6-1.65-1.65-.6 1.65-.6z" />
+    </>
+  ),
   paperclip: (
     <path d="M10.5 5.25L6.25 9.5a1.25 1.25 0 0 0 1.75 1.75l4.5-4.5a2.5 2.5 0 0 0-3.5-3.5L4.25 8a3.75 3.75 0 0 0 5.25 5.25l3.75-3.75" />
   ),

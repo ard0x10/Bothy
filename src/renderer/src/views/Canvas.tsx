@@ -229,6 +229,8 @@ export function Canvas() {
   useEffect(() => {
     const down = (event: KeyboardEvent): void => {
       if (event.code !== 'Space' || event.repeat) return
+      // Ctrl with it is the workspace switcher, not a hand on the surface.
+      if (event.ctrlKey || event.metaKey) return
       if (isTyping(event.target)) return
       space.current = true
       surface.current?.classList.add('canvas-grab')

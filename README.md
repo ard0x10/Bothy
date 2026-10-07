@@ -60,6 +60,21 @@ its changes show a short notice that can be turned off. For agents without MCP,
 
 ## Getting started
 
+### Download (Windows)
+
+Get `Bothy-Setup-<version>.exe` from the latest release on the
+[releases page](https://github.com/ard0x10/Bothy/releases) and run it. It installs for
+your user only, without asking for administrator rights, and puts Bothy in the Start
+Menu. To keep it in a folder of your own instead, take `Bothy-<version>-windows.zip`,
+unzip it and run `Bothy.exe`. The first time, press **Choose vault** and pick the
+folder to keep your work in.
+
+The installer is not signed, so Windows may say it protected your PC. Choose
+**More info**, then **Run anyway**. Both files are built from the tagged source by
+GitHub Actions. A new version is installed the same way, over the old one.
+
+### From source
+
 You need [Git](https://git-scm.com/) and [Node.js](https://nodejs.org/) (Bothy is
 developed on Node 24).
 
@@ -73,7 +88,7 @@ npm start
 `npm start` builds the app and opens it. The first time, press **Choose vault** and pick
 the folder to keep your work in.
 
-### A Start Menu shortcut (Windows)
+#### A Start Menu shortcut (Windows)
 
 After Bothy has been opened once with `npm start` (the first start downloads Electron):
 
@@ -93,7 +108,8 @@ lists the app as Bothy. After an update that brings a new Electron, run
 
 Open Settings, turn on **AI access**, and tick the workspaces an agent may use.
 The same page shows the settings block to paste into your MCP client, and a command
-for clients started from a terminal. Both point at the server in this folder.
+for clients started from a terminal. Both point at the server that comes with this
+copy of Bothy.
 
 ## Your files
 

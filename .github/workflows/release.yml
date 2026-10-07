@@ -1,0 +1,49 @@
+name: Release
+
+# Builds the Windows installer and zip from the tagged source and attaches
+# them to the release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the release to build and attach to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Version matches the tag
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $env:TAG) { throw "package.json says $version, the tag is $env:TAG" }
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run dist
+
+      - name: Upload
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          gh release upload $env:TAG "dist/Bothy-Setup-$version.exe" "dist/Bothy-$version-windows.zip" --clobber

@@ -84,7 +84,15 @@ export function readChangeNotices(value: unknown): ChangeNotices {
 // is its id.
 export type AiWorkspaceRow = { folder: string; name: string; id: string | null; chosen: boolean }
 export type AiVaultRow = { path: string; readable: boolean; workspaces: AiWorkspaceRow[] }
-export type AiConnect = { json: string; command: string; server: string; built: boolean }
+export type AiConnect = {
+  json: string
+  command: string
+  // The same two, written as something to say to an agent rather than
+  // something to paste into a settings file.
+  prompt: string
+  server: string
+  built: boolean
+}
 export type AiSettings = { on: boolean; vaults: AiVaultRow[]; notices: ChangeNotices; connect: AiConnect }
 
 // The server as an agent's client starts it, written out both ways
@@ -121,4 +129,41 @@ export function reachable(access: AiAccess, vaultPath: string, workspaceId: stri
   if (!access.on || !workspaceId) return false
   const vault = Object.keys(access.vaults).find((one) => samePath(one, vaultPath))
   return vault !== undefined && access.vaults[vault].includes(workspaceId)
+}
+
+// Connecting an agent without opening its settings: one thing to say to it,
+// which carries the settings block and the command inside it.
+//
+// The block and the command are the ones above, not a second copy worked out
+// here. An agent that is told a path we made up separately is an agent that
+// connects to the wrong build the first time either of them changes.
+//
+// It ends by asking for the list of workspaces because a client that says it
+// connected is not the same claim as a server that answers: the first call is
+// the only thing that tells the difference. And it is told not to write
+// anything, because a setup that ends with a card nobody asked for is a setup
+// that was not a setup.
+export function setupPrompt(json: string, command: string): string {
+  return [
+    'Connect yourself to Bothy, a kanban and canvas app on this machine. It runs',
+    'an MCP server over stdio.',
+    '',
+    '1. Add this server to your own MCP configuration, under the name bothy:',
+    '',
+    json,
+    '',
+    '   If your configuration takes a command line rather than a block like that,',
+    '   this is the same server as one command:',
+    '',
+    command,
+    '',
+    '2. Reload or restart yourself so the server is connected.',
+    '3. Call its list_workspaces tool and show me what it answered.',
+    '',
+    'If it answers that AI access is off, say so and stop. That switch is in',
+    'Bothy itself, under Settings, AI, and it is where the workspaces you may',
+    'use are chosen. The server cannot turn it on.',
+    '',
+    'Do not create, change or delete anything while setting this up.'
+  ].join('\n')
 }

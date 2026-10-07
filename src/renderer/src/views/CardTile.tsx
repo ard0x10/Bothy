@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Card, Workspace } from '../../../shared/types'
 import { coverColor, coverImage } from '../../../shared/cover'
 import { fileUrl } from '../../../shared/image'
@@ -8,11 +8,14 @@ import { dueState, shortDate } from '../dates'
 import { partsOf } from '../links'
 import { Icon } from './Icon'
 
-type Props = { card: Card; workspace: Workspace }
+// titleBox is the card's title being typed rather than read: the box a right
+// press puts there. It stands where the title stands, so the card is the same
+// card with one line of it open.
+type Props = { card: Card; workspace: Workspace; titleBox?: ReactNode }
 
 // Badges appear only when they carry something. An empty card is one line of
 // text, which is where the quiet look comes from.
-export function CardTile({ card, workspace }: Props) {
+export function CardTile({ card, workspace, titleBox }: Props) {
   const checks = card.checklists.flatMap((list) => list.items)
   const done = checks.filter((item) => item.done).length
   const hasBody = card.body.trim().length > 0
@@ -58,29 +61,32 @@ export function CardTile({ card, workspace }: Props) {
       {/* An address in the title is a link, the same as one in the description.
           The tooltip is where it goes: the title may have cut the address in
           two across a line, and what is on screen is not always all of it. */}
-      <p className="card-title">
-        {partsOf(card.title).map((part, at) =>
-          part.href === null ? (
-            part.text
-          ) : (
-            <a
-              key={at}
-              href={part.href}
-              title={part.href}
-              draggable={false}
-              // The card is the one who follows this, from the press that
-              // finished on it - see SortableCard. The link's own navigation is
-              // turned off rather than left as a second way in: the drag sensor
-              // swallows the click some of the time and lets it through the
-              // rest, and both paths open the browser, so leaving it on means
-              // the address is sometimes asked for twice. Measured: twice.
-              onClick={(event) => event.preventDefault()}
-            >
-              {part.text}
-            </a>
-          )
-        )}
-      </p>
+      {titleBox ?? (
+        <p className="card-title">
+          {partsOf(card.title).map((part, at) =>
+            part.href === null ? (
+              part.text
+            ) : (
+              <a
+                key={at}
+                href={part.href}
+                title={part.href}
+                draggable={false}
+                // The card is the one who follows this, from the press that
+                // finished on it - see SortableCard. The link's own navigation
+                // is turned off rather than left as a second way in: the drag
+                // sensor swallows the click some of the time and lets it
+                // through the rest, and both paths open the browser, so leaving
+                // it on means the address is sometimes asked for twice.
+                // Measured: twice.
+                onClick={(event) => event.preventDefault()}
+              >
+                {part.text}
+              </a>
+            )
+          )}
+        </p>
+      )}
 
       {card.broken && <p className="card-warning">frontmatter did not parse, shown as written</p>}
 
@@ -98,7 +104,7 @@ export function CardTile({ card, workspace }: Props) {
             </span>
           )}
           {checks.length > 0 && (
-            <span title="checklist">
+            <span className={done === checks.length ? 'is-done' : undefined} title="checklist">
               <Icon name="checklist" />
               {done}/{checks.length}
             </span>

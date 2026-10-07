@@ -3,6 +3,7 @@ import { BrowserWindow } from 'electron'
 import { colorsArgument } from '../shared/colors'
 import { groundColor, wornColors } from './themes'
 import { ICON } from './icon'
+import { noMenuBar } from './menubar'
 
 // The settings window, D3. A button opens a window of its own rather than a
 // sheet over the app, and the choice was about behaviour rather than taste.
@@ -48,7 +49,6 @@ function build(parent: BrowserWindow): BrowserWindow {
     // an accent wants to click around the board and look at it.
     modal: false,
     frame: true,
-    autoHideMenuBar: true,
     backgroundColor: groundColor(),
     show: false,
     webPreferences: {
@@ -58,6 +58,8 @@ function build(parent: BrowserWindow): BrowserWindow {
       additionalArguments: [colorsArgument(wornColors())]
     }
   })
+
+  noMenuBar(window)
 
   // Destroyed rather than hidden, which is the other half of the box's
   // argument rather than a disagreement with it. The box is hidden because it

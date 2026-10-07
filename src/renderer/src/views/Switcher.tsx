@@ -86,7 +86,9 @@ export function Switcher() {
           <span
             className="switcher-ground"
             style={
-              workspace.background ? { background: backgroundCss(workspace.background) } : undefined
+              workspace.background
+                ? { background: backgroundCss(workspace.background, workspace.path) }
+                : undefined
             }
           />
           <span className="switcher-name">{workspace.name}</span>

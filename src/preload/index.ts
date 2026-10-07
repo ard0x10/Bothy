@@ -17,6 +17,7 @@ import type {
   CaptureTarget,
   CaptureWhere,
   Card,
+  CardMoved,
   ColumnsSeen,
   Column,
   OpenResult,
@@ -64,6 +65,10 @@ const api = {
     ipcRenderer.invoke(IPC.saveTemplate, workspacePath, card),
   trashCard: (card: Card, workspacePath: string): Promise<void> =>
     ipcRenderer.invoke(IPC.trashCard, card, workspacePath),
+  // Cards leaving `from` for `to`, in the order given. One answer per card, so
+  // a column whose cards did not all make it says which ones stayed.
+  moveCards: (cards: Card[], from: string, to: string): Promise<CardMoved[]> =>
+    ipcRenderer.invoke(IPC.moveCards, cards, from, to),
   // Where a dropped file actually is. Electron took File.path away, so this is
   // the only thing that knows, and it has to be asked on this side of the
   // bridge - the object cannot cross it.
@@ -157,9 +162,18 @@ const api = {
     ipcRenderer.invoke(IPC.renameWorkspace, workspacePath, name),
   setWorkspaceTab: (workspacePath: string, tab: Tab): Promise<void> =>
     ipcRenderer.invoke(IPC.setWorkspaceTab, workspacePath, tab),
+  // Null when this vault has never had a workspace gone into.
+  lastWorkspace: (vaultPath: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.lastWorkspace, vaultPath),
+  setLastWorkspace: (vaultPath: string, workspacePath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.setLastWorkspace, vaultPath, workspacePath),
   // Null takes the background away.
   setWorkspaceBackground: (workspacePath: string, background: Background | null): Promise<void> =>
     ipcRenderer.invoke(IPC.setWorkspaceBackground, workspacePath, background),
+  // Null when the picture could not be copied in. The board keeps the ground
+  // it had rather than being given a name with no file behind it.
+  attachStockPhoto: (workspacePath: string, photo: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.attachStockPhoto, workspacePath, photo),
   setWorkspaceBookmark: (workspacePath: string, on: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.setWorkspaceBookmark, workspacePath, on),
   // An empty name takes the note off the colour again.

@@ -131,6 +131,11 @@ type State = {
   draft: Card | null
   dirty: boolean
   conflict: Conflict | null
+  // The card held by a right press on the board, and the box it was standing
+  // in when the press landed. Here rather than in the kanban because what it
+  // opens covers the window, while the card itself is inside a column that
+  // scrolls and can lay nothing over anything.
+  cardMenu: CardHold | null
 
   // The palette is one surface for search, navigation and commands. Its seed is
   // what the box starts out holding, so a shortcut can drop the user straight
@@ -432,6 +437,12 @@ type State = {
   renameWorkspace: (path: string, name: string) => Promise<void>
   // The ground of the board on screen. Null takes it away.
   setBackground: (background: Background | null) => Promise<void>
+  // The two ways a picture becomes the ground: one of the app's own, or one
+  // off this machine. Both end in a file in the workspace's files/ and the same
+  // key in workspace.json, so there is one kind of picture background and not
+  // two.
+  setBackgroundPhoto: (photo: string) => Promise<void>
+  pickBackgroundImage: () => Promise<void>
   // In the Bookmarks section or out of it. Any workspace, not only the one on
   // screen: the section's own rows take a mark off.
   setBookmark: (path: string, on: boolean) => Promise<void>
@@ -443,8 +454,14 @@ type State = {
   addColumn: (title: string) => Promise<void>
   renameColumn: (columnId: string, title: string) => Promise<void>
   moveColumn: (columnId: string, by: number) => Promise<void>
+  // A whole column into another workspace of this vault, v0.5: its cards go
+  // first, as files, and the column is written at the end of the board they
+  // land on.
+  moveColumnTo: (columnId: string, toPath: string) => Promise<void>
   removeColumn: (columnId: string) => Promise<string | null>
 
+  openCardMenu: (held: CardHold) => void
+  closeCardMenu: () => void
   openCard: (id: string) => void
   openCardAt: (workspacePath: string, cardId: string) => Promise<void>
   closeCard: () => Promise<void>
@@ -452,10 +469,16 @@ type State = {
   saveDraft: () => Promise<void>
   resolveConflict: (keep: 'mine' | 'theirs') => Promise<void>
   moveToColumn: (cardId: string, columnId: string) => void
+  // One card into a column of another workspace, v0.5. The column is named
+  // because two workspaces both have a To do and neither is the other's.
+  moveCardTo: (cardId: string, toPath: string, columnId: string) => Promise<void>
   addCard: (columnId: string, title: string, template?: string | null) => Promise<void>
   addImageCards: (columnId: string, pictures: File[]) => Promise<void>
   saveAsTemplate: () => Promise<void>
   captureCard: (title: string, where?: CaptureWhere | null) => Promise<void>
+  // A card's title written from the board, with no panel opened. The one thing
+  // the right press on a card can change without leaving the column.
+  renameCard: (cardId: string, title: string) => Promise<void>
   trashCard: (cardId: string) => Promise<void>
   setArchived: (cardId: string, archived: boolean) => Promise<void>
   setCardDates: (workspacePath: string, cardId: string, dates: Partial<Card>) => Promise<void>
@@ -498,6 +521,13 @@ function settle(vault: Vault | null, wanted: string | null): string | null {
   if (!vault || vault.workspaces.length === 0) return null
   if (wanted && vault.workspaces.some((w) => w.path === wanted)) return wanted
   return vault.workspaces[0].path
+}
+
+// Where the window lands as the app starts: the workspace the vault was left
+// on, or the first one when that is gone or was never written.
+async function landing(vault: Vault | null): Promise<string | null> {
+  if (!vault) return null
+  return settle(vault, await window.api.lastWorkspace(vault.path))
 }
 
 // The three colour actions used to live here, D3 took them to the settings
@@ -923,6 +953,11 @@ function middleOfView(state: State): { x: number; y: number } {
   return toWorld(state.viewport, state.canvasSize.w / 2, state.canvasSize.h / 2)
 }
 
+// A card held by a right press, and where on the screen it was standing. The
+// box is measured once, when the press lands: what is laid over it is a copy,
+// and a copy has to be told where to stand.
+export type CardHold = { id: string; rect: { left: number; top: number; width: number } }
+
 export const useVault = create<State>((set, get) => ({
   vault: null,
   workspacePath: null,
@@ -932,6 +967,7 @@ export const useVault = create<State>((set, get) => ({
   draft: null,
   dirty: false,
   conflict: null,
+  cardMenu: null,
   paletteOpen: false,
   paletteSeed: '',
   composingIn: null,
@@ -1736,7 +1772,7 @@ export const useVault = create<State>((set, get) => ({
       window.api.workspaceOpensNow()
     ])
     set({ workspaceOpens })
-    const workspacePath = settle(vault, get().workspacePath)
+    const workspacePath = await landing(vault)
     set({ vault, workspacePath, tab: tabOf(vault, workspacePath, get().workspaceOpens), loading: false })
     // After the vault, not beside it. Main puts a folder on the known list as
     // part of opening it, so a list asked for at the same time as the open is a
@@ -1827,6 +1863,10 @@ export const useVault = create<State>((set, get) => ({
       filter: view === 'calendar' ? get().filter : NO_FILTER,
       notice: null
     })
+    // Written as it is gone into rather than as the window closes: a window
+    // that is closed by the system, or crashes, never gets to say goodbye.
+    const vault = get().vault
+    if (vault) void window.api.setLastWorkspace(vault.path, path)
   },
 
   // Same promise as leaving a workspace: the panel is going off screen, so what
@@ -1892,7 +1932,21 @@ export const useVault = create<State>((set, get) => ({
     await get().select(path)
   },
 
+  // On screen first, on disk behind it. The box closes on Enter, and waiting
+  // for the vault to be read again left the old name standing where the box had
+  // been for about a third of a second, measured. Main cleans the name up the
+  // same way, so the reload that follows says what is already on screen.
   renameWorkspace: async (path, name) => {
+    const vault = get().vault
+    const shown = name.trim() || 'Workspace'
+    if (vault) {
+      set({
+        vault: {
+          ...vault,
+          workspaces: vault.workspaces.map((one) => (one.path === path ? { ...one, name: shown } : one))
+        }
+      })
+    }
     await window.api.renameWorkspace(path, name)
     await get().reload()
   },
@@ -1918,6 +1972,36 @@ export const useVault = create<State>((set, get) => ({
       }
     })
     await writeBackground(workspacePath, background)
+  },
+
+  setBackgroundPhoto: async (photo) => {
+    const { workspacePath } = get()
+    if (!workspacePath) return
+    const name = await window.api.attachStockPhoto(workspacePath, photo)
+    // Nothing copied, nothing changed. A name written without its file would be
+    // a board that goes blank and a workspace.json pointing at a picture that
+    // was never there.
+    if (!name) {
+      set({ notice: 'That picture could not be copied into this workspace.' })
+      return
+    }
+    await get().setBackground({ type: 'image', name })
+  },
+
+  // The picker takes more than one because it is the canvas's picker, and the
+  // ground is one picture: the first is the answer and the rest are dropped.
+  pickBackgroundImage: async () => {
+    const { workspacePath } = get()
+    if (!workspacePath) return
+    const sources = await window.api.pickImages()
+    if (sources.length === 0) return
+    const names = await window.api.attachImages(workspacePath, sources.slice(0, 1))
+    const name = names[0]
+    if (!name) {
+      set({ notice: 'That picture could not be copied into this workspace.' })
+      return
+    }
+    await get().setBackground({ type: 'image', name })
   },
 
   // A colour named. The name is the app's own list of labels in the folder
@@ -2012,6 +2096,69 @@ export const useVault = create<State>((set, get) => ({
     columns.splice(to, 0, moved)
     get().applyColumns(columns)
     await get().saveColumns()
+  },
+
+  // The column to another workspace of this vault. Its cards go as files first,
+  // which is main's work (vault/move.ts), and the column is written at the end
+  // of the board they land on, keeping its name, its limit and whatever else
+  // was on it. The id comes along too unless that board already has one, since
+  // two columns of one file may not answer to the same name.
+  moveColumnTo: async (columnId, toPath) => {
+    const { vault } = get()
+    const from = currentWorkspace(get())
+    const column = from?.columns.find((one) => one.id === columnId)
+    const to = vault?.workspaces.find((one) => one.path === toPath)
+    if (!vault || !from || !column || !to) return
+
+    // A card of this column half typed into is written before its file moves
+    // out from under the panel, the way a capture settles the panel first.
+    const open = get().openId
+    if (open !== null && column.cards.includes(open)) {
+      if (get().dirty) await get().saveDraft()
+      if (get().conflict) {
+        set({ notice: 'A card in this column is waiting on an answer. Nothing was moved.' })
+        return
+      }
+    }
+
+    const cards = column.cards.flatMap((id) => {
+      const card = from.cards.find((one) => one.id === id)
+      return card ? [card] : []
+    })
+    const answers = await window.api.moveCards(cards, from.path, to.path)
+    const arrived = answers.flatMap((one) => (one.ok ? [one.card] : []))
+    const stayed = answers.filter((one) => !one.ok)
+    // Not one of them went. The column is left exactly where it is, rather than
+    // moving as an empty column with its cards still behind it.
+    if (arrived.length === 0 && cards.length > 0) {
+      set({ notice: `${column.title} was not moved: ${stayed[0]?.why ?? 'nothing could be moved'}.` })
+      return
+    }
+    if (open !== null && arrived.some((one) => one.id === open)) {
+      set({ openId: null, draft: null, dirty: false, conflict: null })
+    }
+
+    const taken = new Set(to.columns.map((one) => one.id))
+    const landing: Column = {
+      ...column,
+      id: taken.has(column.id) ? newId('c') : column.id,
+      cards: arrived.map((one) => one.id)
+    }
+    // The column it came from goes only when nothing stayed in it. A card that
+    // could not be moved has to have somewhere to be, and where it already was
+    // is the only place that needs no explaining.
+    landMoved(set, get, from.path, to.path, arrived, {
+      column: landing,
+      drop: stayed.length === 0 ? column.id : null
+    })
+    await get().saveColumns(to.path, landing.cards)
+    await get().saveColumns(
+      from.path,
+      cards.map((one) => one.id)
+    )
+
+    const held = stayed.length === 0 ? '' : ` ${stayed.length} card(s) stayed: ${stayed[0].why}.`
+    set({ notice: `${column.title} moved to ${to.name}.${held}` })
   },
 
   // Returns why it did not happen, or null when it did. Nothing is deleted
@@ -2119,6 +2266,9 @@ export const useVault = create<State>((set, get) => ({
     }
   },
 
+  openCardMenu: (held) => set({ cardMenu: held }),
+  closeCardMenu: () => set({ cardMenu: null }),
+
   openCard: (id) => {
     const card = currentWorkspace(get())?.cards.find((entry) => entry.id === id)
     if (card) set({ openId: id, draft: { ...card }, dirty: false, conflict: null })
@@ -2198,6 +2348,53 @@ export const useVault = create<State>((set, get) => ({
     const next = moveCard(workspace.columns, cardId, { columnId, overCardId: null })
     get().applyColumns(next)
     void get().saveColumns(undefined, [cardId])
+  },
+
+  // The card leaves this board for a column of another workspace's. The file
+  // and the pictures it names are main's work (vault/move.ts); the two boards
+  // write their own order here, because a card that left one columns.json and
+  // arrived in another is a change to both files.
+  //
+  // The board it landed on is written first. Between the two writes the card is
+  // listed in both files for as long as one write takes, and that way round is
+  // the harmless one: a file listing a card it does not have drops the id with
+  // a note, while one holding a card no column lists puts it at the end of the
+  // first column, which is not where it was sent.
+  moveCardTo: async (cardId, toPath, columnId) => {
+    const { vault } = get()
+    const from = currentWorkspace(get())
+    const card = from?.cards.find((one) => one.id === cardId)
+    const to = vault?.workspaces.find((one) => one.path === toPath)
+    const column = to?.columns.find((one) => one.id === columnId)
+    if (!vault || !from || !card || !to || !column) return
+
+    // Whatever is half typed into this card goes to disk before its file moves
+    // out from under the panel. An unanswered clash stops the move rather than
+    // carrying the question to a folder the panel is not looking at.
+    if (get().openId === cardId) {
+      if (get().dirty) await get().saveDraft()
+      if (get().conflict) {
+        set({ notice: 'This card is waiting on an answer. Nothing was moved.' })
+        return
+      }
+    }
+
+    const [answer] = await window.api.moveCards([card], from.path, to.path)
+    if (!answer || !answer.ok) {
+      set({ notice: `"${card.title}" was not moved: ${answer?.why ?? 'the move was refused'}.` })
+      return
+    }
+
+    // The panel is closed rather than carried along. It would be open on a card
+    // in a folder this window is no longer showing, and a panel editing a card
+    // the board behind it does not hold is worse than no panel.
+    if (get().openId === cardId) set({ openId: null, draft: null, dirty: false, conflict: null })
+    landMoved(set, get, from.path, to.path, [answer.card], { into: columnId })
+    await get().saveColumns(to.path, [answer.card.id])
+    await get().saveColumns(from.path, [cardId])
+
+    const said = `"${answer.card.title}" moved to ${to.name} / ${column.title}`
+    set({ notice: answer.notes.length > 0 ? `${said}. ${answer.notes.join('. ')}` : said })
   },
 
   // `template` is the bare file name of one in templates/, or nothing for the
@@ -2418,6 +2615,38 @@ export const useVault = create<State>((set, get) => ({
       if (get().openId === cardId) set({ draft: saved, dirty: false })
     }),
 
+  renameCard: (cardId, title) =>
+    queued(async () => {
+      const state = get()
+      const workspace = currentWorkspace(state)
+      const known = workspace?.cards.find((entry) => entry.id === cardId)
+      // A card whose frontmatter did not parse is shown as it was written and
+      // is edited as text in the panel. There is no title to set on it.
+      if (!workspace || !known || known.broken) return
+      const clean = title.trim()
+      if (clean === '' || clean === known.title) return
+
+      // The same rule archiving goes by: the open card is written from its
+      // draft, so nothing being typed in the panel is thrown away by a rename
+      // from the board.
+      const source = state.openId === cardId && state.draft ? state.draft : known
+      const next = { ...source, title: clean }
+
+      const result = await window.api.saveCard(next, next.hash)
+      if (!result.ok) {
+        // A conflict is a question, and there is no panel to ask it in when the
+        // rename came from the board. What is on disk wins, the way it does for
+        // archiving from the sheet.
+        if (get().openId === cardId) set({ conflict: { disk: result.disk, mine: result.mine } })
+        else await get().reload()
+        return
+      }
+
+      const saved = { ...next, hash: result.hash }
+      putCard(set, get, saved)
+      if (get().openId === cardId) set({ draft: saved, dirty: false })
+    }),
+
   trashCard: async (cardId) => {
     const workspace = currentWorkspace(get())
     const card = workspace?.cards.find((entry) => entry.id === cardId)
@@ -2562,6 +2791,62 @@ function writeBackground(path: string, background: Background | null): Promise<v
 
 function currentWorkspace(state: State): Workspace | null {
   return state.vault?.workspaces.find((w) => w.path === state.workspacePath) ?? null
+}
+
+// Where a moved card is put down, v0.5: at the end of a column the other board
+// already has, or in a column that is arriving with it.
+type Landing = { into: string } | { column: Column; drop: string | null }
+
+// Cards that have arrived in another workspace, put down on both boards in one
+// breath: off the board they left, onto the one they landed on, with the
+// pictures they brought added to what that folder is known to hold. Disk says
+// all of this already; this is so the screen does not wait for the watcher to
+// come round and say it again.
+function landMoved(
+  set: (partial: Partial<State>) => void,
+  get: () => State,
+  fromPath: string,
+  toPath: string,
+  arrived: Card[],
+  landing: Landing
+): void {
+  const { vault } = get()
+  if (!vault) return
+  const gone = new Set(arrived.map((card) => card.id))
+  const names = arrived.flatMap((card) => [...card.files, ...(card.cover ? [card.cover] : [])])
+
+  set({
+    vault: {
+      ...vault,
+      workspaces: vault.workspaces.map((workspace) => {
+        if (workspace.path === fromPath) {
+          const columns = workspace.columns
+            .filter((column) => !('column' in landing) || landing.drop !== column.id)
+            .map((column) => ({ ...column, cards: column.cards.filter((id) => !gone.has(id)) }))
+          return {
+            ...workspace,
+            columns,
+            cards: workspace.cards.filter((card) => !gone.has(card.id))
+          }
+        }
+        if (workspace.path !== toPath) return workspace
+        const columns =
+          'column' in landing
+            ? [...workspace.columns, landing.column]
+            : workspace.columns.map((column) =>
+                column.id === landing.into
+                  ? { ...column, cards: [...column.cards, ...arrived.map((card) => card.id)] }
+                  : column
+              )
+        return {
+          ...workspace,
+          columns,
+          cards: [...workspace.cards, ...arrived],
+          files: [...new Set([...workspace.files, ...names])]
+        }
+      })
+    }
+  })
 }
 
 // Puts one card back into the vault, adding it when it is new. Columns come

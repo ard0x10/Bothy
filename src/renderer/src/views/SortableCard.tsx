@@ -4,14 +4,23 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Card, Workspace } from '../../../shared/types'
 import { CardTile } from './CardTile'
 
-type Props = { card: Card; workspace: Workspace; open: boolean; onOpen: () => void }
+type Props = {
+  card: Card
+  workspace: Workspace
+  open: boolean
+  onOpen: () => void
+  // The right press, with the box the card is standing in. The board is the one
+  // that holds it: what comes up covers the whole window, and a card inside a
+  // column that scrolls cannot lay anything over its own column.
+  onHold: (rect: { left: number; top: number; width: number }) => void
+}
 
 // The pointer has to travel this far before the gesture counts as a drag rather
 // than a click. Same number the drag sensor uses, so the two never disagree
 // about which one just happened.
 const CLICK_SLOP = 4
 
-export function SortableCard({ card, workspace, open, onOpen }: Props) {
+export function SortableCard({ card, workspace, open, onOpen, onHold }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id
   })
@@ -29,8 +38,26 @@ export function SortableCard({ card, workspace, open, onOpen }: Props) {
       {...attributes}
       {...listeners}
       onPointerDown={(event) => {
+        // The left button opens a card and carries it. A press of any other is
+        // on its way to the menu below, and was opening the card as well: the
+        // release that follows it lands here like any other release, and
+        // nothing here used to ask which button it was.
+        if (event.button !== 0) {
+          down.current = null
+          return
+        }
         down.current = { x: event.clientX, y: event.clientY }
         listeners?.onPointerDown?.(event)
+      }}
+      onContextMenu={(event) => {
+        // The window's own menu is for text and links, and there is neither
+        // here: this press belongs to the card.
+        event.preventDefault()
+        // A right press can also start a drag, and a card being carried is not
+        // a card to hold still. Nothing is measured while one is in the air.
+        if (isDragging) return
+        const box = event.currentTarget.getBoundingClientRect()
+        onHold({ left: box.left, top: box.top, width: box.width })
       }}
       onPointerUp={(event) => {
         const from = down.current

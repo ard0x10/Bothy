@@ -6,6 +6,7 @@ import { watchAiTrail } from './aitrail'
 import { writeHands } from './editing'
 import { registerCapture, releaseCapture } from './capture'
 import { closeSettings } from './settings'
+import { noMenuBar } from './menubar'
 import { ICON } from './icon'
 import { privilegeImageScheme, registerImageProtocol } from './images'
 import { sidebarNow } from './state'
@@ -30,7 +31,6 @@ function createWindow(): void {
     // --bg-app, because a window whose own ground disagrees with the page shows
     // the difference for exactly as long as the load takes.
     backgroundColor: groundColor(),
-    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -45,6 +45,8 @@ function createWindow(): void {
       additionalArguments: [colorsArgument(wornColors()), sidebarArgument(sidebarNow())]
     }
   })
+
+  noMenuBar(window)
 
   // Showing only once the first frame is painted avoids a white flash.
   registerIpc(window)

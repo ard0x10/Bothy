@@ -9,6 +9,11 @@
   --accent: #6b8afd;
   --late: #e05252;
   --soon: #e0a04a;
+  /* A checklist with every item ticked. The same in both themes: it is worn as
+     a filled box with white on it, and white stands at 5.1 to 1 on this green,
+     over the 4.5 asked of text. */
+  --done: #2f7d3a;
+  --on-done: #ffffff;
 
   /* The type scale. Seven font sizes and seven line heights used to be written
      by hand in 112 places, so changing one idea meant visiting 112 places. Three
@@ -124,6 +129,8 @@
     --accent: #3a5bd9;
     --late: #c62828;
     --soon: #a4650c;
+    --done: #2f7d3a;
+    --on-done: #ffffff;
 
     --on-accent: #ffffff;
     /* A wash has to be heavier here to be seen at all - 6% of a colour over
@@ -556,6 +563,11 @@ button {
 }
 
 .sidebar-list {
+  display: flex;
+  flex-direction: column;
+  /* Apart by 2, so two rows wearing grounds read as two boxes rather than one
+     band of colour. */
+  gap: 2px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1850,6 +1862,48 @@ button {
   white-space: nowrap;
 }
 
+/* The name is the button that renames it, so it wears nothing until the hand is
+   over it: the head is read far more often than it is renamed. */
+.kanban-name {
+  max-width: 100%;
+  overflow: hidden;
+  /* Sideways only: the head is as tall as the name's line, and a press target
+     taller than that would make the head taller with it. */
+  padding: 0 8px;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: var(--radius-control);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.kanban-name:hover {
+  background: var(--bg-column);
+}
+
+/* In the name's place and at the name's size, so the words do not jump when
+   the box opens over them. 4 + 4 and 1 + 1 under the four line cap. */
+.kanban-rename {
+  grid-column: 2;
+  width: 320px;
+  max-width: 100%;
+  min-height: var(--control-h);
+  max-height: calc(4lh + 10px);
+  padding: 4px 7px;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+
 /* 8 between them is the gap a card's head keeps between its ⋯ and its close. */
 .kanban-tools {
   grid-column: 3;
@@ -2016,6 +2070,54 @@ button {
   gap: 6px;
   padding: 8px 8px 4px;
   color: var(--text-dim);
+}
+
+/* Three across rather than five: what is being chosen is a picture, and a
+   picture needs a shape to be recognised in. At the menu's width that is a
+   67 by 40 tile, near enough the shape of a window for the crop on the tile to
+   be the crop on the board. */
+.background-photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.background-photo {
+  height: 40px;
+  border-radius: var(--radius-control);
+  box-shadow: 0 0 0 1px var(--border);
+  /* Under the picture while it is being fetched, and the whole of the tile if
+     the file is not there. */
+  background-color: var(--bg-column);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.background-photo.is-on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* The other way to a picture, under a line and named for itself: pressed for a
+   file on this machine, not for one of the tiles above. Sitting straight under
+   that row it read as the step after choosing one of them. The line is the
+   one the card's file sits under at the foot of its own menu. */
+.background-yours {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+/* The picture the person is wearing, shown here rather than among the app's
+   own. It is not a choice, it is the choice already made, so it does not
+   answer to the hand; and it is one picture rather than a row of them, so it
+   is as wide as the menu allows. */
+.background-photo.is-own {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 0 8px 6px;
+  cursor: default;
 }
 
 .columns {
@@ -2238,6 +2340,16 @@ button {
   gap: 4px;
 }
 
+/* Every item ticked: the count sits in a green box. Padded sideways only, so
+   the row of badges keeps its height and the card does not grow when the last
+   item is ticked. */
+.card-badges > .is-done {
+  padding: 0 6px;
+  border-radius: var(--radius-control);
+  background: var(--done);
+  color: var(--on-done);
+}
+
 .due-today,
 .due-soon {
   color: var(--soon);
@@ -2425,6 +2537,60 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
 
 .sortable.is-open .card {
   box-shadow: inset 0 0 0 1px var(--accent), var(--ring-card);
+}
+
+/* A card held by the right press. The board goes under the same scrim the card
+   panel uses, and a copy of the card is laid back over it at the place the real
+   one was measured at, so the one card being worked on is the one card that is
+   lit. */
+.card-hold-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: var(--scrim);
+}
+
+.card-hold-card,
+.card-hold-menu {
+  position: fixed;
+  z-index: 21;
+}
+
+/* The copy stands alone: the gap it keeps in a column is between it and the
+   next card, and here there is no next card. */
+.card-hold-card .card {
+  margin-bottom: 0;
+}
+
+/* The width here and the one the menu is placed by are the same number, and
+   they have to be: the side it goes to is worked out from it. It is the width
+   every other menu in the app is, since v0.5 gave this one a second page that
+   lists workspaces by name. */
+.card-hold-menu {
+  width: 236px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--bg-card);
+  box-shadow: var(--lift);
+}
+
+/* The title in the place the title was, wearing what every other box a name is
+   typed into wears. 4 + 4 of padding and 1 + 1 of edge, which is the four line
+   cap this box stops at. */
+.card-hold-title {
+  width: 100%;
+  min-height: var(--control-h);
+  max-height: calc(4lh + 10px);
+  padding: 4px 7px;
+  color: var(--text);
+  background: var(--bg-app);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  font: inherit;
+  outline: none;
 }
 
 /* Card panel */
@@ -2635,6 +2801,10 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   top: calc(100% + 4px);
   z-index: 12;
   width: 236px;
+  /* The card's menu has the same cap and for the same list: Move to names every
+     other workspace, and a vault with enough of them runs past the window. */
+  max-height: 60vh;
+  overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-surface);
@@ -2673,6 +2843,91 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   opacity: 0.3;
   cursor: default;
   background: none;
+}
+
+/* A menu's second page, v0.5: the head that says what the page is and how to
+   get back, and the rows underneath. Shared by the card held under the right
+   press and by a column's ⋯, which ask the same question - where does this go -
+   and would otherwise each have a copy of it. The box around them is still the
+   menu's own, so a width or a ground set here would be the second place those
+   live. */
+.menu-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-back {
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--radius-control);
+  color: var(--text-dim);
+}
+
+.menu-back:hover {
+  background: var(--bg-card-hover);
+  color: var(--text);
+}
+
+.menu-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* A row of one of those pages: a name that gives way before the box does, and
+   at the end either the arrow that says there is another page or the count of
+   what is already in that column. */
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  text-align: left;
+  color: var(--text);
+}
+
+.menu-row:hover {
+  background: var(--bg-card-hover);
+}
+
+.menu-row svg {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.menu-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-row-count {
+  flex: none;
+  color: var(--text-dim);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+/* A vault with one workspace in it, or a board with no columns yet. Said in the
+   menu rather than left as an empty box, which reads as a list that failed. */
+.menu-empty {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--text-dim);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
 .card-menu-item svg,
@@ -3977,11 +4232,11 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   line-height: var(--lh-small);
 }
 
-/* The two buttons waited for the hand in room of their own, and at
+/* The buttons waited for the hand in room of their own, and at
    rest that room was the name's, taken for nothing. They stand over the end of
    the row now and take no room and no press until the hand is on the row or
-   one of them has the keyboard. Then the name gives way to them, ending 60
-   from the row's end: two buttons of 26, 2 between them, 6 before them. */
+   one of them has the keyboard. Then the name gives way to them, ending 88
+   from the row's end: three buttons of 26, 2 between them, 6 before them. */
 .sidebar-acts {
   position: absolute;
   top: 0;
@@ -4003,7 +4258,7 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
 /* The row lights as one while the buttons are up, including under them. */
 .sidebar-row:hover .sidebar-item,
 .sidebar-row:has(.sidebar-acts:focus-within) .sidebar-item {
-  padding-right: 60px;
+  padding-right: 88px;
   background: var(--bg-column);
   color: var(--text);
 }
@@ -4011,6 +4266,26 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
 .sidebar-act:hover {
   color: var(--text);
   background: var(--bg-card);
+}
+
+/* A bookmark that is on says so in the accent while it shows, as the
+   switcher's does. */
+.sidebar-act.is-on {
+  color: var(--accent);
+}
+
+/* On a row wearing its ground the buttons are on that ground too, so they take
+   the name's white, and the hover darkens under them rather than laying the
+   theme's card on it: a white card under a white mark is no mark at all. */
+.sidebar-row.has-ground .sidebar-act,
+.sidebar-mark-row.has-ground .sidebar-mark-act {
+  color: inherit;
+}
+
+.sidebar-row.has-ground .sidebar-act:hover,
+.sidebar-mark-row.has-ground .sidebar-mark-act:hover {
+  color: inherit;
+  background: var(--scrim);
 }
 
 .sidebar-confirm {
@@ -4078,6 +4353,9 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
 /* The Bookmarks section: its own list, built like the workspace list, with
    one button to a row where that list has two. */
 .sidebar-marks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -4292,7 +4570,10 @@ button.add-column:hover {
 
 /* The capture window is frameless and has nothing behind it, so the whole page
    is the box. It gets a border of its own because without a frame there is
-   nothing else to say where it ends. */
+   nothing else to say where it ends, and it is the line every other surface
+   uses: the box was ringed in the accent, and a coloured edge on a box that is
+   only a line of text is decoration. Nothing in it wears the accent now except
+   the column already chosen in an open menu. */
 body.is-capture {
   background: var(--bg-column);
 }
@@ -4304,7 +4585,7 @@ body.is-capture {
   height: 100vh;
   box-sizing: border-box;
   padding: 16px 18px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-surface);
   background: var(--bg-column);
   /* The one place in the app a whole window can be dragged by its background:
@@ -4320,21 +4601,20 @@ body.is-capture {
   flex: none;
 }
 
+/* The text sits on the box itself, with no field drawn round it: the box is
+   the field. The caret says where typing goes. Lined up with the menus' text
+   under it by the same 9 of padding. */
 .capture-input {
   -webkit-app-region: no-drag;
-  padding: 0 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  padding: 0 9px;
+  background: none;
+  border: 0;
   border-radius: var(--radius-control);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-title);
   outline: none;
   height: var(--control-h);
-}
-
-.capture-input:focus {
-  border-color: var(--accent);
 }
 
 /* The box closes and the card is not on screen afterwards, so this line is the
@@ -4376,9 +4656,9 @@ body.is-capture {
   gap: 6px;
   width: 100%;
   padding: 6px 9px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-control);
-  background: var(--bg-card);
+  background: none;
   color: var(--text-dim);
   font: inherit;
   font-size: var(--fs-small);
@@ -4389,7 +4669,7 @@ body.is-capture {
 }
 
 .capture-menu-face:hover {
-  border-color: var(--accent);
+  background: var(--bg-card);
   color: var(--text);
 }
 
@@ -5003,8 +5283,6 @@ body.is-capture {
 
 .colors-list {
   margin: 0;
-  padding: 6px;
-  overflow-y: auto;
   list-style: none;
 }
 
@@ -5245,12 +5523,35 @@ body.is-settings {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: 168px;
+  width: 176px;
   padding: 14px 10px;
   box-sizing: border-box;
   background: var(--bg-column);
   border-right: 1px solid var(--border);
   overflow-y: auto;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Which folder all of this is about, at the foot of the list rather than in it.
+   Pushed down by the auto margin, so it sits at the bottom of a short list and
+   under a long one either way. */
+.settings-here {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.settings-here-name {
+  margin: 0 0 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
 .settings-nav-head {
@@ -5262,7 +5563,12 @@ body.is-settings {
   text-transform: uppercase;
 }
 
+/* An icon and the name, the way a row in the panel's own lists is built: the
+   icon is the app's mark for what the page is about, not a bullet. */
 .settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 8px;
   text-align: left;
   color: var(--text-dim);
@@ -5286,6 +5592,15 @@ body.is-settings {
   color: var(--text);
 }
 
+.settings-tab svg {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.settings-tab.is-on svg {
+  color: var(--accent);
+}
+
 .settings-body {
   flex: 1;
   min-width: 0;
@@ -5293,10 +5608,76 @@ body.is-settings {
   overflow-y: auto;
 }
 
+/* The reading measure is the page's rather than the window's. A row is a name,
+   a sentence and a control, and on a window pulled wide the three would stand
+   so far apart that a person reads across the gap to find which control belongs
+   to which name. */
+.settings-head,
+.settings-part {
+  max-width: 640px;
+}
+
+.settings-head {
+  margin-bottom: 16px;
+}
+
 .settings-title {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: var(--fs-title);
   font-weight: 600;
+}
+
+/* What the page is, before what it does. The same sentence the row grammar puts
+   under a setting's name, one level up. */
+.settings-said {
+  margin: 3px 0 0;
+  color: var(--text-dim);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+/* A part of a page: what the rows have in common, and then the rows on one
+   surface. The surface is the column's, a step up off the window's ground, so a
+   group of settings stands the way a column of cards does. */
+.settings-part + .settings-part {
+  margin-top: 20px;
+}
+
+.settings-part-name {
+  margin: 0 0 6px 2px;
+  color: var(--text-dim);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-box {
+  background: var(--bg-column);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+}
+
+/* The box gives its children their room and the lines between them, so a row, a
+   list and a warning all sit in one without any of them knowing they are in a
+   box. */
+.settings-box > * {
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.settings-box > * + * {
+  border-top: 1px solid var(--border);
+}
+
+/* A list is the exception, and only in its padding: its rows have an inset of
+   their own for the hover to round off against, so the box gives them 6 and the
+   row's own 8 lands them on the 14 every other row stands at. */
+.settings-box > ul,
+.settings-box > dl,
+.settings-box > .settings-ai {
+  padding: 6px;
 }
 
 /* The grammar itself. The sentence is on the left with the label rather than
@@ -5307,8 +5688,6 @@ body.is-settings {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 2px;
-  border-bottom: 1px solid var(--border);
 }
 
 .settings-row-say {
@@ -5552,30 +5931,16 @@ body.is-settings {
 }
 
 .theme-saved {
-  margin: 8px 2px 0;
+  margin: 0;
 }
 
 /* The one thing on this page the desktop can veto, said where the row is
    rather than in a line at the bottom. --late, because it is the colour this
    app already uses for something that did not go the way it should have. */
 .settings-warn {
-  margin: 8px 0 0;
   color: var(--late);
   font-size: var(--fs-small);
   line-height: var(--lh-small);
-}
-
-.settings-group {
-  margin: 22px 0 6px;
-  color: var(--text-dim);
-  font-size: var(--fs-small);
-  line-height: var(--lh-small);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.settings-keys {
-  margin: 0;
 }
 
 .settings-key {
@@ -5583,8 +5948,14 @@ body.is-settings {
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  padding: 5px 2px;
-  border-bottom: 1px solid var(--border);
+  padding: 5px 8px;
+}
+
+/* Inside a box the lines between the rows are the box's, so the list itself
+   draws none - except between its own rows, where the reading is a long column
+   of pairs and the line is what keeps a key beside its name. */
+.settings-key + .settings-key {
+  border-top: 1px solid var(--border);
 }
 
 .settings-key dt {
@@ -5708,8 +6079,10 @@ body.is-settings {
   line-height: var(--lh-small);
 }
 
+/* The box under it is the column's surface now, so the hover steps up to the
+   card's rather than repeating the ground it is standing on. */
 .settings-ai-workspace:hover {
-  background: var(--bg-column);
+  background: var(--bg-card);
 }
 
 .settings-ai-workspace input[type='checkbox'] {
@@ -5720,7 +6093,6 @@ body.is-settings {
 /* What a person pastes somewhere else, so it is shown exactly as it will be
    copied: not wrapped, and wider than the page scrolls inside itself. */
 .settings-code {
-  margin: 8px 0 0;
   padding: 8px 10px;
   overflow-x: auto;
   background: var(--bg-card);

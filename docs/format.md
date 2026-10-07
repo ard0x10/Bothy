@@ -66,7 +66,7 @@ The name and settings of one workspace. Keys not listed here are kept when the a
   - name (text): A name given to the colour. Cards still carry the colour word.
   - color (colour, #rrggbb or #rrggbbaa): A colour of the workspace's own for this label, over the app's.
 - lastTab (one of: kanban, canvas; always written; default "kanban"): The view the workspace was left on.
-- background (object | object): The kanban's ground. No key means the app's own, following the theme.
+- background (object | object | object): The kanban's ground. No key means the app's own, following the theme.
   either:
     - type (one of: color; always written): A plain colour.
     - color (colour, #rrggbb or #rrggbbaa; always written): The colour, six digits.
@@ -74,6 +74,9 @@ The name and settings of one workspace. Keys not listed here are kept when the a
     - type (one of: gradient; always written): Two colours, top left to bottom right.
     - from (colour, #rrggbb or #rrggbbaa; always written): The top left colour, six digits.
     - to (colour, #rrggbb or #rrggbbaa; always written): The bottom right colour, six digits.
+  or:
+    - type (one of: image; always written): A picture.
+    - name (text; always written): The picture's file name in this workspace's files/ folder. It is copied in there, whether it came with the app or from the machine, so the ground travels with the folder.
 - bookmarked (true, or left out for off): In the Bookmarks section of the sidebar.
 
 ```json My Project/workspace.json

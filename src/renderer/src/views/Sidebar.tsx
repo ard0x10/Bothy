@@ -3,6 +3,8 @@ import { flushSync } from 'react-dom'
 import { useVault } from '../store'
 import { APP_NAME } from '../../../shared/app'
 import { fileName } from '../../../shared/paths'
+import { GROUND_INK, shadedGroundCss } from '../../../shared/background'
+import type { Workspace } from '../../../shared/types'
 import { stillness } from '../motion'
 import { NameBox } from './NameBox'
 import { SearchPane } from './SearchPane'
@@ -32,6 +34,21 @@ const SECTIONS: Section[] = [
 // The same curve all the way through the slide: quick off the mark and easing
 // into where it stops, so the hand that pressed sees it answer at once.
 const SLIDE_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
+
+// A row wearing its workspace's ground, shaded so the white name stands on it
+// (background.ts works out how much). A workspace with none keeps the panel's
+// own row, which follows the theme like everything else in the panel.
+//
+// The row is given the white as well as the name, because the buttons that
+// stand over the end of the name are on the same ground and take it from there.
+const inkOf = (workspace: Workspace): React.CSSProperties | undefined =>
+  workspace.background ? { color: GROUND_INK } : undefined
+
+function groundOf(workspace: Workspace): React.CSSProperties | undefined {
+  return workspace.background
+    ? { background: shadedGroundCss(workspace.background, workspace.path), color: GROUND_INK }
+    : undefined
+}
 
 // Picking a workspace from the panel is what the panel was opened for, so it
 // gets out of the way once it has answered: the board that was chosen is what
@@ -71,6 +88,7 @@ export function Sidebar() {
   const composing = useVault((state) => state.composingWorkspace)
   const composeWorkspace = useVault((state) => state.composeWorkspace)
   const addWorkspace = useVault((state) => state.addWorkspace)
+  const setBookmark = useVault((state) => state.setBookmark)
 
   // Which row is being renamed, and which one asked to be thrown away. Both are
   // one at a time: two open questions in a list is two ways to answer the wrong
@@ -283,73 +301,95 @@ export function Sidebar() {
         ) : (
           <>
             <ul className="sidebar-list">
-              {vault?.workspaces.map((workspace) => (
-                <li key={workspace.path} className="sidebar-row">
-                  {renaming === workspace.path ? (
-                    <NameBox
-                      className="sidebar-rename"
-                      placeholder="Workspace name"
-                      initial={workspace.name}
-                      onCommit={(name) =>
-                        void useVault.getState().renameWorkspace(workspace.path, name)
-                      }
-                      onCancel={() => setRenaming(null)}
-                    />
-                  ) : confirming === workspace.path ? (
-                    <span className="sidebar-confirm">
-                      <span className="sidebar-confirm-ask">Move to trash?</span>
-                      <button
-                        className="sidebar-confirm-yes"
-                        onClick={() => {
-                          setConfirming(null)
-                          void useVault.getState().trashWorkspace(workspace.path)
-                        }}
-                      >
-                        Yes
-                      </button>
-                      <button className="sidebar-act" onClick={() => setConfirming(null)}>
-                        No
-                      </button>
-                    </span>
-                  ) : (
-                    <>
-                      <button
-                        className={
-                          workspace.path === current ? 'sidebar-item is-current' : 'sidebar-item'
+              {vault?.workspaces.map((workspace) => {
+                // Renaming or asking about the trash, the row is a box and a
+                // question rather than the name, and they sit on the panel.
+                const asking = renaming === workspace.path || confirming === workspace.path
+                const grounded = !asking && workspace.background !== undefined
+                const marked = workspace.bookmarked === true
+                return (
+                  <li
+                    key={workspace.path}
+                    className={grounded ? 'sidebar-row has-ground' : 'sidebar-row'}
+                    style={grounded ? inkOf(workspace) : undefined}
+                  >
+                    {renaming === workspace.path ? (
+                      <NameBox
+                        className="sidebar-rename"
+                        placeholder="Workspace name"
+                        initial={workspace.name}
+                        onCommit={(name) =>
+                          void useVault.getState().renameWorkspace(workspace.path, name)
                         }
-                        onClick={() => goTo(workspace.path)}
-                      >
-                        {workspace.name}
-                      </button>
-                      {/* At rest these took the name's room without
-                          being there. They stand over the end of the row now,
-                          and the name gives way to them only while they show. */}
-                      <span className="sidebar-acts">
+                        onCancel={() => setRenaming(null)}
+                      />
+                    ) : confirming === workspace.path ? (
+                      <span className="sidebar-confirm">
+                        <span className="sidebar-confirm-ask">Move to trash?</span>
                         <button
-                          className="sidebar-act"
-                          title="Rename"
+                          className="sidebar-confirm-yes"
                           onClick={() => {
                             setConfirming(null)
-                            setRenaming(workspace.path)
+                            void useVault.getState().trashWorkspace(workspace.path)
                           }}
                         >
-                          <Icon name="pencil" />
+                          Yes
                         </button>
-                        <button
-                          className="sidebar-act"
-                          title="Move to trash"
-                          onClick={() => {
-                            setRenaming(null)
-                            setConfirming(workspace.path)
-                          }}
-                        >
-                          <Icon name="trash" />
+                        <button className="sidebar-act" onClick={() => setConfirming(null)}>
+                          No
                         </button>
                       </span>
-                    </>
-                  )}
-                </li>
-              ))}
+                    ) : (
+                      <>
+                        <button
+                          className={
+                            workspace.path === current ? 'sidebar-item is-current' : 'sidebar-item'
+                          }
+                          style={groundOf(workspace)}
+                          onClick={() => goTo(workspace.path)}
+                        >
+                          {workspace.name}
+                        </button>
+                        {/* At rest these took the name's room without
+                            being there. They stand over the end of the row now,
+                            and the name gives way to them only while they show.
+                            The bookmark first, so the one that throws the
+                            workspace away stays at the end where it was. */}
+                        <span className="sidebar-acts">
+                          <button
+                            className={marked ? 'sidebar-act is-on' : 'sidebar-act'}
+                            title={marked ? 'Remove from bookmarks' : 'Add to bookmarks'}
+                            aria-pressed={marked}
+                            onClick={() => void setBookmark(workspace.path, !marked)}
+                          >
+                            <Icon name={marked ? 'bookmark-on' : 'bookmark'} />
+                          </button>
+                          <button
+                            className="sidebar-act"
+                            title="Rename"
+                            onClick={() => {
+                              setConfirming(null)
+                              setRenaming(workspace.path)
+                            }}
+                          >
+                            <Icon name="pencil" />
+                          </button>
+                          <button
+                            className="sidebar-act"
+                            title="Move to trash"
+                            onClick={() => {
+                              setRenaming(null)
+                              setConfirming(workspace.path)
+                            }}
+                          >
+                            <Icon name="trash" />
+                          </button>
+                        </span>
+                      </>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
 
             {composing ? (
@@ -403,8 +443,9 @@ export function Sidebar() {
 }
 
 // The Bookmarks section. We chose what it holds: workspaces, the ones
-// they keep going back to. Marked from the ⋯ by a kanban's name, listed here in
-// the vault's own order, and taken off from here or from the same menu.
+// they keep going back to. Marked from the ⋯ by a kanban's name or from the
+// workspace's own row, listed here in the vault's own order, and taken off from
+// any of the three.
 //
 // Its own rows rather than the workspace list's classes: that list is what the
 // rest of the panel means by "the workspaces", and a second list wearing its
@@ -421,7 +462,8 @@ function Bookmarks() {
   if (marked.length === 0) {
     return (
       <p className="sidebar-marks-empty">
-        No bookmarks yet. Add a workspace from the menu beside its name on the kanban.
+        No bookmarks yet. Add a workspace with the bookmark on its row in Workspaces, or from
+        the menu beside its name on the kanban.
       </p>
     )
   }
@@ -429,9 +471,14 @@ function Bookmarks() {
   return (
     <ul className="sidebar-marks">
       {marked.map((workspace) => (
-        <li key={workspace.path} className="sidebar-mark-row">
+        <li
+          key={workspace.path}
+          className={workspace.background ? 'sidebar-mark-row has-ground' : 'sidebar-mark-row'}
+          style={inkOf(workspace)}
+        >
           <button
             className={workspace.path === current ? 'sidebar-mark is-current' : 'sidebar-mark'}
+            style={groundOf(workspace)}
             onClick={() => goTo(workspace.path)}
           >
             {workspace.name}

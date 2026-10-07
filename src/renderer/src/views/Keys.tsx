@@ -6,11 +6,12 @@ import { Icon } from './Icon'
 
 // What the `?` at the foot of the panel opens. Step D2.
 //
-// Two lists under two headings, and the headings are the point: "everywhere"
-// and "only on the canvas" is exactly the difference somebody needs to be told,
-// and it is the difference the two tables already draw. Neither list is typed
-// out here - App.tsx matches through the first and the canvas through the
-// second, so a sheet that says a key exists is a sheet the handler agrees with.
+// Lists under headings, and the headings are the point: "everywhere", "only on
+// the board" and "only on the canvas" is exactly the difference somebody needs
+// to be told. No list is typed out here - App.tsx matches through the first
+// table and the canvas through the second, and which of the app's keys are the
+// board's is a field on the row rather than a second list, so a sheet that says
+// a key exists is a sheet the handler agrees with.
 //
 // Its own class names rather than the canvas sheet's, for the reason the
 // colours sheet gives: two panels answering one selector means the first in the
@@ -44,7 +45,7 @@ export function Keys() {
         <div className="keys-body">
           <p className="keys-group">Everywhere</p>
           <dl>
-            {APP_KEYS.map((key) => (
+            {APP_KEYS.filter((key) => key.where === 'app').map((key) => (
               <div key={key.action} className="keys-row">
                 <dt>{key.label}</dt>
                 <dd>{appKeyText(key)}</dd>
@@ -64,6 +65,16 @@ export function Keys() {
                 <dd>{acceleratorText(capture.accelerator, window.api.platform)}</dd>
               </div>
             )}
+          </dl>
+
+          <p className="keys-group">On the board</p>
+          <dl>
+            {APP_KEYS.filter((key) => key.where === 'board').map((key) => (
+              <div key={key.action} className="keys-row">
+                <dt>{key.label}</dt>
+                <dd>{appKeyText(key)}</dd>
+              </div>
+            ))}
           </dl>
 
           <p className="keys-group">On the canvas</p>

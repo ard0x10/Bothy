@@ -9,7 +9,7 @@ import type { Base, ThemeChoice, Themes } from '../../../shared/themes'
 import type { CardView } from '../../../shared/cardview'
 import type { WorkspaceOpens } from '../../../shared/opening'
 import type { AiSettings, ChangeNotices } from '../../../shared/ai'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 import { NameBox } from './NameBox'
 import { useMenu } from './useMenu'
 
@@ -32,14 +32,39 @@ import { useMenu } from './useMenu'
 
 // AI joined them in v0.4 step 9, and its name was already given: the server
 // and the guide both tell a person to look "in Settings, under AI".
-const SECTIONS = [
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'keys', label: 'Shortcuts' },
-  { id: 'vault', label: 'Vault' },
-  { id: 'ai', label: 'AI' }
-] as const
+//
+// v0.5 gave each one an icon and a sentence. Neither is decoration: the icons
+// are the app's own, the same marks the panel's rail uses to say what a column
+// of buttons is for, and the sentence under a page's name is the row grammar
+// applied to the page - what this is, before what it does.
+const SECTIONS: { id: Section; label: string; icon: IconName; why: string }[] = [
+  {
+    id: 'appearance',
+    label: 'Appearance',
+    icon: 'contrast',
+    why: 'How Bothy looks, and where a card opens.'
+  },
+  {
+    id: 'keys',
+    label: 'Shortcuts',
+    icon: 'keyboard',
+    why: 'The one key the whole desktop hears, and the ones this window does.'
+  },
+  {
+    id: 'vault',
+    label: 'Vault',
+    icon: 'folder',
+    why: 'The folder your work lives in, and what a workspace opens on.'
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    icon: 'spark',
+    why: 'What an agent may reach, and how to connect one.'
+  }
+]
 
-type Section = (typeof SECTIONS)[number]['id']
+type Section = 'appearance' | 'keys' | 'vault' | 'ai'
 
 // Eleven rows, because we picked eleven tokens. Each says what it paints in
 // the app's own words rather than in the variable's name - "Cards" is something
@@ -128,30 +153,70 @@ export function Settings() {
 
   if (!now) return <div className="settings-boot" />
 
+  const here = SECTIONS.find((one) => one.id === section)
+
   return (
     <div className="settings">
       <nav className="settings-nav">
-        <p className="settings-nav-head">Bothy</p>
-        {SECTIONS.map((one) => (
-          <button
-            key={one.id}
-            className={one.id === section ? 'settings-tab is-on' : 'settings-tab'}
-            aria-current={one.id === section}
-            onClick={() => setSection(one.id)}
-          >
-            {one.label}
-          </button>
-        ))}
+        <p className="settings-nav-head">Settings</p>
+        <div className="settings-tabs">
+          {SECTIONS.map((one) => (
+            <button
+              key={one.id}
+              className={one.id === section ? 'settings-tab is-on' : 'settings-tab'}
+              aria-current={one.id === section}
+              onClick={() => setSection(one.id)}
+            >
+              <Icon name={one.icon} />
+              {one.label}
+            </button>
+          ))}
+        </div>
+
+        {/* The one thing the window cannot say by its title, at the foot of
+            the list rather than in it: which folder all of this is about. Not a
+            button - the way in is the Vault page, and a second road to opening
+            a folder is a second answer to which one is open. Its own class
+            rather than the Vault page's, so the list of known folders stays the
+            one thing that wears that name. */}
+        {now.vault && (
+          <div className="settings-here">
+            <p className="settings-nav-head">Open folder</p>
+            <p className="settings-here-name" title={now.vault}>
+              {fileName(now.vault)}
+            </p>
+          </div>
+        )}
       </nav>
 
       <div className="settings-body">
-        <h1 className="settings-title">{SECTIONS.find((one) => one.id === section)?.label}</h1>
+        <header className="settings-head">
+          <h1 className="settings-title">{here?.label}</h1>
+          <p className="settings-said">{here?.why}</p>
+        </header>
         {section === 'appearance' && <Appearance now={now} setNow={setNow} />}
         {section === 'keys' && <Shortcuts now={now} setNow={setNow} />}
         {section === 'vault' && <VaultSection now={now} setNow={setNow} />}
         {section === 'ai' && <AiSection />}
       </div>
     </div>
+  )
+}
+
+// A part of a page: rows that belong together on one surface, under the name of
+// what they have in common. v0.5, and it is the grammar of a row applied one
+// level up - a page of rows with a line between each is a list a person has to
+// read to the end to find the shape of, and the shape was always there.
+//
+// The box gives its children their padding and the lines between them, so what
+// goes inside is a row, a list or a warning without any of them having to know
+// they are in one.
+function Part({ name, children }: { name?: string; children: React.ReactNode }) {
+  return (
+    <section className="settings-part">
+      {name && <h2 className="settings-part-name">{name}</h2>}
+      <div className="settings-box">{children}</div>
+    </section>
   )
 }
 
@@ -252,49 +317,51 @@ function Appearance({ now, setNow }: Part) {
 
   return (
     <>
-      <Row name="Theme" why="Dark, light, your own colours, or a theme file from the themes folder.">
-        <ThemePicker themes={themes} onPick={pickTheme} />
-        <button
-          className="theme-folder"
-          title="Open the themes folder"
-          aria-label="Open the themes folder"
-          onClick={openFolder}
-        >
-          <Icon name="folder" />
-        </button>
-      </Row>
+      <Part>
+        <Row name="Theme" why="Dark, light, your own colours, or a theme file from the themes folder.">
+          <ThemePicker themes={themes} onPick={pickTheme} />
+          <button
+            className="theme-folder"
+            title="Open the themes folder"
+            aria-label="Open the themes folder"
+            onClick={openFolder}
+          >
+            <Icon name="folder" />
+          </button>
+        </Row>
 
-      {/* Said on the row: the list still says the file's name, and the window
-          is dark, and without this a person has two answers and no reason. */}
-      {themes.missing && (
-        <p className="settings-warn theme-missing">
-          {chosenFile?.problem
-            ? `${chosenFile.name} cannot be used: ${chosenFile.problem} Dark is showing until the file is fixed.`
-            : `${themes.theme} is not in the themes folder. Dark is showing until it is back.`}
-        </p>
-      )}
-      {folderFailed && (
-        <p className="settings-warn">The themes folder could not be opened: {themes.folder}</p>
-      )}
+        {/* Said on the row: the list still says the file's name, and the window
+            is dark, and without this a person has two answers and no reason. */}
+        {themes.missing && (
+          <p className="settings-warn theme-missing">
+            {chosenFile?.problem
+              ? `${chosenFile.name} cannot be used: ${chosenFile.problem} Dark is showing until the file is fixed.`
+              : `${themes.theme} is not in the themes folder. Dark is showing until it is back.`}
+          </p>
+        )}
+        {folderFailed && (
+          <p className="settings-warn">The themes folder could not be opened: {themes.folder}</p>
+        )}
 
-      <Row name="Card details" why="Where a card opens when you click it.">
-        <div className="settings-choices" role="group" aria-label="Card details">
-          {CARD_VIEWS.map((entry) => (
-            <button
-              key={entry.id}
-              className={entry.id === now.cardView ? 'view-choice is-on' : 'view-choice'}
-              aria-pressed={entry.id === now.cardView}
-              title={entry.hint}
-              onClick={() => setCardView(entry.id)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-      </Row>
+        <Row name="Card details" why="Where a card opens when you click it.">
+          <div className="settings-choices" role="group" aria-label="Card details">
+            {CARD_VIEWS.map((entry) => (
+              <button
+                key={entry.id}
+                className={entry.id === now.cardView ? 'view-choice is-on' : 'view-choice'}
+                aria-pressed={entry.id === now.cardView}
+                title={entry.hint}
+                onClick={() => setCardView(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+      </Part>
 
       {custom && (
-        <>
+        <Part name="Your own colours">
           <Row
             name="Colours"
             why="Your own colours over the base below. A colour you have not changed follows the base."
@@ -394,7 +461,7 @@ function Appearance({ now, setNow }: Part) {
               )
             })}
           </ul>
-        </>
+        </Part>
       )}
     </>
   )
@@ -517,43 +584,45 @@ function Shortcuts({ now, setNow }: Part) {
 
   return (
     <>
-      <Row
-        name="Quick capture"
-        why="Opens the capture box from anywhere, even when Bothy is behind another window."
-      >
-        <button
-          className={recording ? 'settings-record is-recording' : 'settings-record'}
-          onClick={() => {
-            setRefused(null)
-            setRecording(!recording)
-          }}
+      <Part>
+        <Row
+          name="Quick capture"
+          why="Opens the capture box from anywhere, even when Bothy is behind another window."
         >
-          {recording ? 'Press a combination…' : shown}
-        </button>
-        <button
-          className="settings-act"
-          disabled={now.capture.accelerator === CAPTURE_DEFAULT}
-          onClick={() => void put(CAPTURE_DEFAULT)}
-        >
-          Reset
-        </button>
-      </Row>
+          <button
+            className={recording ? 'settings-record is-recording' : 'settings-record'}
+            onClick={() => {
+              setRefused(null)
+              setRecording(!recording)
+            }}
+          >
+            {recording ? 'Press a combination…' : shown}
+          </button>
+          <button
+            className="settings-act"
+            disabled={now.capture.accelerator === CAPTURE_DEFAULT}
+            onClick={() => void put(CAPTURE_DEFAULT)}
+          >
+            Reset
+          </button>
+        </Row>
 
-      {/* Said on the row rather than in a line at the bottom: this is the one
-          setting in the app that another program can veto, and the person
-          reading it is looking at the row when they wonder why nothing
-          happened. */}
-      {refused && (
-        <p className="settings-warn">
-          {acceleratorText(refused, window.api.platform)} is taken by something else. Still on{' '}
-          {shown}.
-        </p>
-      )}
-      {!now.capture.ok && (
-        <p className="settings-warn">
-          Nothing is holding {shown} right now, so quick capture is off. Try another combination.
-        </p>
-      )}
+        {/* Said on the row rather than in a line at the bottom: this is the one
+            setting in the app that another program can veto, and the person
+            reading it is looking at the row when they wonder why nothing
+            happened. */}
+        {refused && (
+          <p className="settings-warn">
+            {acceleratorText(refused, window.api.platform)} is taken by something else. Still on{' '}
+            {shown}.
+          </p>
+        )}
+        {!now.capture.ok && (
+          <p className="settings-warn">
+            Nothing is holding {shown} right now, so quick capture is off. Try another combination.
+          </p>
+        )}
+      </Part>
 
       {/* The rest are this window's own keys, and they are listed rather than
           settable - which is a scope line rather than a shrug. A global key can
@@ -562,25 +631,38 @@ function Shortcuts({ now, setNow }: Part) {
           where a person looks for them. Both lists come out of the same tables
           the handlers match through, so neither can say a key nothing listens
           for. */}
-      <p className="settings-group">Everywhere in Bothy</p>
-      <dl className="settings-keys">
-        {APP_KEYS.map((key) => (
-          <div key={key.action} className="settings-key">
-            <dt>{key.label}</dt>
-            <dd>{appKeyText(key)}</dd>
-          </div>
-        ))}
-      </dl>
+      <Part name="Everywhere in Bothy">
+        <dl className="settings-keys">
+          {APP_KEYS.filter((key) => key.where === 'app').map((key) => (
+            <div key={key.action} className="settings-key">
+              <dt>{key.label}</dt>
+              <dd>{appKeyText(key)}</dd>
+            </div>
+          ))}
+        </dl>
+      </Part>
 
-      <p className="settings-group">On the canvas</p>
-      <dl className="settings-keys">
-        {CANVAS_KEYS.map((key) => (
-          <div key={key.action} className="settings-key">
-            <dt>{key.label}</dt>
-            <dd>{keyText(key)}</dd>
-          </div>
-        ))}
-      </dl>
+      <Part name="On the board">
+        <dl className="settings-keys">
+          {APP_KEYS.filter((key) => key.where === 'board').map((key) => (
+            <div key={key.action} className="settings-key">
+              <dt>{key.label}</dt>
+              <dd>{appKeyText(key)}</dd>
+            </div>
+          ))}
+        </dl>
+      </Part>
+
+      <Part name="On the canvas">
+        <dl className="settings-keys">
+          {CANVAS_KEYS.map((key) => (
+            <div key={key.action} className="settings-key">
+              <dt>{key.label}</dt>
+              <dd>{keyText(key)}</dd>
+            </div>
+          ))}
+        </dl>
+      </Part>
     </>
   )
 }
@@ -603,57 +685,60 @@ function VaultSection({ now, setNow }: Part) {
 
   return (
     <>
-      <Row name="Vault folder" why="Everything you make lives here. Nothing leaves it.">
-        <span className="settings-path" title={now.vault ?? undefined}>
-          {now.vault ?? 'No vault is open'}
-        </span>
-      </Row>
+      <Part>
+        <Row name="Vault folder" why="Everything you make lives here. Nothing leaves it.">
+          <span className="settings-path" title={now.vault ?? undefined}>
+            {now.vault ?? 'No vault is open'}
+          </span>
+        </Row>
 
-      <Row
-        name="Open another"
-        why="Points Bothy at a different folder. The one you leave is kept on the list below."
-      >
-        <button className="settings-act settings-other" onClick={() => ask(null)}>
-          Choose a folder…
-        </button>
-      </Row>
+        <Row
+          name="Open another"
+          why="Points Bothy at a different folder. The one you leave is kept on the list below."
+        >
+          <button className="settings-act settings-other" onClick={() => ask(null)}>
+            Choose a folder…
+          </button>
+        </Row>
 
-      <Row name="Opening a workspace" why="What shows when you go into a workspace.">
-        <div className="settings-choices" role="group" aria-label="Opening a workspace">
-          {OPENS.map((entry) => (
-            <button
-              key={entry.id}
-              className={entry.id === now.workspaceOpens ? 'opens-choice is-on' : 'opens-choice'}
-              aria-pressed={entry.id === now.workspaceOpens}
-              title={entry.hint}
-              onClick={() => setOpens(entry.id)}
-            >
-              {entry.label}
-            </button>
+        <Row name="Opening a workspace" why="What shows when you go into a workspace.">
+          <div className="settings-choices" role="group" aria-label="Opening a workspace">
+            {OPENS.map((entry) => (
+              <button
+                key={entry.id}
+                className={entry.id === now.workspaceOpens ? 'opens-choice is-on' : 'opens-choice'}
+                aria-pressed={entry.id === now.workspaceOpens}
+                title={entry.hint}
+                onClick={() => setOpens(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+      </Part>
+
+      <Part name="Folders this app knows">
+        <ul className="settings-vaults">
+          {now.vaults.map((path) => (
+            <li key={path}>
+              <button
+                className="settings-vault"
+                role="menuitemradio"
+                aria-checked={path === now.vault}
+                title={path}
+                onClick={() => ask(path)}
+              >
+                <span className="settings-vault-tick">
+                  {path === now.vault ? <Icon name="check" /> : null}
+                </span>
+                <span className="settings-vault-name">{fileName(path)}</span>
+                <span className="settings-vault-path">{path}</span>
+              </button>
+            </li>
           ))}
-        </div>
-      </Row>
-
-      <p className="settings-group">Folders this app knows</p>
-      <ul className="settings-vaults">
-        {now.vaults.map((path) => (
-          <li key={path}>
-            <button
-              className="settings-vault"
-              role="menuitemradio"
-              aria-checked={path === now.vault}
-              title={path}
-              onClick={() => ask(path)}
-            >
-              <span className="settings-vault-tick">
-                {path === now.vault ? <Icon name="check" /> : null}
-              </span>
-              <span className="settings-vault-name">{fileName(path)}</span>
-              <span className="settings-vault-path">{path}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+        </ul>
+      </Part>
       {/* A folder that will not open is the ordinary case rather than a failure
           to hide - a drive that is not plugged in, a folder that was moved - so
           the row stays where it is and the window that tried says so. */}
@@ -690,101 +775,122 @@ function AiSection() {
 
   return (
     <>
-      <Row
-        name="AI access"
-        why="Agents you connect can read, change and delete cards and the canvas in the workspaces ticked below. What they delete goes to the trash."
-      >
-        <div className="settings-choices" role="group" aria-label="AI access">
-          {[false, true].map((on) => (
-            <button
-              key={String(on)}
-              className={on === ai.on ? 'ai-choice is-on' : 'ai-choice'}
-              aria-pressed={on === ai.on}
-              onClick={() => void window.api.setAiOn(on).then(setAi)}
-            >
-              {on ? 'On' : 'Off'}
-            </button>
+      <Part>
+        <Row
+          name="AI access"
+          why="Agents you connect can read, change and delete cards and the canvas in the workspaces ticked below. What they delete goes to the trash."
+        >
+          <div className="settings-choices" role="group" aria-label="AI access">
+            {[false, true].map((on) => (
+              <button
+                key={String(on)}
+                className={on === ai.on ? 'ai-choice is-on' : 'ai-choice'}
+                aria-pressed={on === ai.on}
+                onClick={() => void window.api.setAiOn(on).then(setAi)}
+              >
+                {on ? 'On' : 'Off'}
+              </button>
+            ))}
+          </div>
+        </Row>
+      </Part>
+
+      <Part name="Workspaces an agent may use">
+        {/* With the switch off the choices stay where they are, faded,
+            and cannot be changed. Main refuses a change then as well. */}
+        <div className={ai.on ? 'settings-ai' : 'settings-ai is-locked'} aria-disabled={!ai.on}>
+          {ai.vaults.length === 0 && <p className="settings-note">No vault has been opened yet.</p>}
+          {ai.vaults.map((vault) => (
+            <section key={vault.path} className="settings-ai-vault">
+              <p className="settings-ai-vault-head">
+                <span className="settings-vault-name">{fileName(vault.path)}</span>
+                <span className="settings-vault-path" title={vault.path}>
+                  {vault.path}
+                </span>
+              </p>
+              {!vault.readable ? (
+                <p className="settings-note">
+                  This folder cannot be read right now. What was chosen in it is kept.
+                </p>
+              ) : vault.workspaces.length === 0 ? (
+                <p className="settings-note">There are no workspaces in this folder.</p>
+              ) : (
+                <ul className="settings-ai-workspaces">
+                  {vault.workspaces.map((one) => (
+                    <li key={one.folder}>
+                      <label className="settings-ai-workspace">
+                        <input
+                          type="checkbox"
+                          checked={one.chosen}
+                          disabled={!ai.on}
+                          onChange={(event) =>
+                            void window.api
+                              .setAiWorkspace(vault.path, one.folder, event.target.checked)
+                              .then(setAi)
+                          }
+                        />
+                        <span>{one.name}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           ))}
         </div>
-      </Row>
-
-      <p className="settings-group">Workspaces an agent may use</p>
-      {/* With the switch off the choices stay where they are, faded,
-          and cannot be changed. Main refuses a change then as well. */}
-      <div className={ai.on ? 'settings-ai' : 'settings-ai is-locked'} aria-disabled={!ai.on}>
-        {ai.vaults.length === 0 && <p className="settings-note">No vault has been opened yet.</p>}
-        {ai.vaults.map((vault) => (
-          <section key={vault.path} className="settings-ai-vault">
-            <p className="settings-ai-vault-head">
-              <span className="settings-vault-name">{fileName(vault.path)}</span>
-              <span className="settings-vault-path" title={vault.path}>
-                {vault.path}
-              </span>
-            </p>
-            {!vault.readable ? (
-              <p className="settings-note">
-                This folder cannot be read right now. What was chosen in it is kept.
-              </p>
-            ) : vault.workspaces.length === 0 ? (
-              <p className="settings-note">There are no workspaces in this folder.</p>
-            ) : (
-              <ul className="settings-ai-workspaces">
-                {vault.workspaces.map((one) => (
-                  <li key={one.folder}>
-                    <label className="settings-ai-workspace">
-                      <input
-                        type="checkbox"
-                        checked={one.chosen}
-                        disabled={!ai.on}
-                        onChange={(event) =>
-                          void window.api
-                            .setAiWorkspace(vault.path, one.folder, event.target.checked)
-                            .then(setAi)
-                        }
-                      />
-                      <span>{one.name}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
-      </div>
+      </Part>
 
       {/* Not tied to the switch: it covers changes made outside Bothy
           too, and a text editor can make one with the switch off. */}
-      <Row
-        name="Notices"
-        why="The line that says what an agent changed, or that something changed outside Bothy."
-      >
-        <div className="settings-choices" role="group" aria-label="Notices">
-          {NOTICES.map((entry) => (
-            <button
-              key={entry.id}
-              className={entry.id === ai.notices ? 'notice-choice is-on' : 'notice-choice'}
-              aria-pressed={entry.id === ai.notices}
-              title={entry.hint}
-              onClick={() => setNotices(entry.id)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-      </Row>
+      <Part>
+        <Row
+          name="Notices"
+          why="The line that says what an agent changed, or that something changed outside Bothy."
+        >
+          <div className="settings-choices" role="group" aria-label="Notices">
+            {NOTICES.map((entry) => (
+              <button
+                key={entry.id}
+                className={entry.id === ai.notices ? 'notice-choice is-on' : 'notice-choice'}
+                aria-pressed={entry.id === ai.notices}
+                title={entry.hint}
+                onClick={() => setNotices(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+      </Part>
 
-      <p className="settings-group">Connecting an agent</p>
-      <Row name="Server settings" why="Paste this into your AI client's server settings.">
-        <CopyButton text={ai.connect.json} />
-      </Row>
-      <pre className="settings-code">{ai.connect.json}</pre>
-      <Row name="From a terminal" why="The same server as one command, for a client started from a terminal.">
-        <CopyButton text={ai.connect.command} />
-      </Row>
-      <pre className="settings-code">{ai.connect.command}</pre>
-      {!ai.connect.built && (
-        <p className="settings-warn">The server file is not there yet: {ai.connect.server}</p>
-      )}
+      {/* The first row is the way in that asks least of the person: the settings
+          block and the command below are the same connection, for anyone who
+          would rather open their client's configuration themselves. The prompt
+          carries both inside it, so nothing here is a second copy of the paths.
+          Each one and the block under it are one thing, so they share a box. */}
+      <Part name="Connecting an agent">
+        <Row
+          name="Ask the agent to do it"
+          why="Paste this to your agent. It sets the server up in its own configuration and says whether it worked."
+        >
+          <CopyButton text={ai.connect.prompt} />
+        </Row>
+        <pre className="settings-code settings-prompt">{ai.connect.prompt}</pre>
+        <Row name="Server settings" why="Paste this into your AI client's server settings.">
+          <CopyButton text={ai.connect.json} />
+        </Row>
+        <pre className="settings-code">{ai.connect.json}</pre>
+        <Row
+          name="From a terminal"
+          why="The same server as one command, for a client started from a terminal."
+        >
+          <CopyButton text={ai.connect.command} />
+        </Row>
+        <pre className="settings-code">{ai.connect.command}</pre>
+        {!ai.connect.built && (
+          <p className="settings-warn">The server file is not there yet: {ai.connect.server}</p>
+        )}
+      </Part>
     </>
   )
 }

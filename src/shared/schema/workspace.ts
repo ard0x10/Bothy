@@ -40,6 +40,16 @@ const BACKGROUND_GRADIENT_FIELDS = [
   { name: 'to', value: { is: 'colour' }, required: true, means: 'The bottom right colour, six digits.' }
 ] as const satisfies readonly Field[]
 
+const BACKGROUND_IMAGE_FIELDS = [
+  { name: 'type', value: { is: 'one of', values: ['image'] }, required: true, means: 'A picture.' },
+  {
+    name: 'name',
+    value: { is: 'text' },
+    required: true,
+    means: "The picture's file name in this workspace's files/ folder. It is copied in there, whether it came with the app or from the machine, so the ground travels with the folder."
+  }
+] as const satisfies readonly Field[]
+
 export const WORKSPACE_FIELDS = [
   {
     name: 'formatVersion',
@@ -73,7 +83,8 @@ export const WORKSPACE_FIELDS = [
       is: 'either',
       of: [
         { is: 'map', fields: BACKGROUND_COLOR_FIELDS },
-        { is: 'map', fields: BACKGROUND_GRADIENT_FIELDS }
+        { is: 'map', fields: BACKGROUND_GRADIENT_FIELDS },
+        { is: 'map', fields: BACKGROUND_IMAGE_FIELDS }
       ]
     },
     means: "The kanban's ground. No key means the app's own, following the theme."

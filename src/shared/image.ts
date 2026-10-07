@@ -153,3 +153,38 @@ function decode(text: string): string | null {
     return null
   }
 }
+
+// The pictures the app ships with, before one is copied into a workspace. The
+// picker has to draw them and they are not in any folder a workspace owns, so
+// they are asked for down the same scheme under a host of their own:
+//
+//   bothy-file://ws/<workspace>/<name>   one workspace's files/
+//   bothy-file://stock/<name>            resources/backgrounds/
+//
+// A second scheme would have been a second thing to privilege, register and
+// keep in step with this one, for pictures that are read exactly the same way.
+export const STOCK_HOST = 'stock'
+
+export function stockUrl(name: string): string {
+  return `${FILE_SCHEME}://${STOCK_HOST}/${encodeURIComponent(name)}`
+}
+
+// The name in one of those, or null for anything else - including a workspace
+// url, which fileUrlParts answers for. Main tries this first and that second,
+// and neither can take the other's urls.
+export function stockUrlName(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== `${FILE_SCHEME}:` || parsed.host !== STOCK_HOST) return null
+  const parts = parsed.pathname.split('/').filter((part) => part !== '')
+  if (parts.length !== 1) return null
+  try {
+    return decodeURIComponent(parts[0])
+  } catch {
+    return null
+  }
+}

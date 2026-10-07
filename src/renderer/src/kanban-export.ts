@@ -50,6 +50,7 @@ export async function kanbanPng(
   // ground it goes, and with it it stays exactly as the board wears it.
   const columns = copy.querySelector<HTMLElement>('.columns')
   if (columns && !ground) columns.style.removeProperty('background')
+  if (columns && ground) await embedGround(columns, workspacePath)
 
   // Laid out in this window first, where the stylesheet already is, because
   // that is the only way to know how big the whole board is: the window may be
@@ -104,6 +105,28 @@ async function embedCovers(copy: HTMLElement, workspacePath: string): Promise<vo
     const url = found[picture.dataset.file ?? '']
     if (url) picture.setAttribute('src', url)
     else picture.remove()
+  }
+}
+
+// A ground that is a picture, given its bytes for the same reason every cover
+// is: the url on it is one main answers, and a drawing reaches nothing outside
+// itself. The url inside the inline style is swapped and the rest of it is left
+// alone, so how a picture sits on the board is decided in one place
+// (backgroundCss) and not in two.
+//
+// A picture that cannot be read leaves the ground off rather than leaving a
+// url in the style that draws as nothing: the columns keep their own colour,
+// which is what the board does when the file is gone.
+async function embedGround(columns: HTMLElement, workspacePath: string): Promise<void> {
+  const name = columns.dataset.groundFile
+  if (!name) return
+  const found = await window.api.embedFiles(workspacePath, [name])
+  const url = found[name]
+  const style = columns.style.background
+  if (url && style.includes('url(')) {
+    columns.style.background = style.replace(/url\(["']?[^)"']*["']?\)/, `url("${url}")`)
+  } else {
+    columns.style.removeProperty('background')
   }
 }
 

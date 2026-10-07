@@ -41,7 +41,11 @@ export function NameBox({
   // so cards can be added one after another by typing and pressing Enter.
   // Escape and clicking away still take it down, so the loop has a door.
   keepOpen?: boolean
-  onCommit: (name: string) => void
+  // How the answer was given: Enter, or the box losing the focus. Callers that
+  // do not care leave the second argument off. The card held by a right press
+  // is the one that cares: Enter there is a person finished with the card, and
+  // a blur is a person on their way to press something else.
+  onCommit: (name: string, how: 'enter' | 'blur') => void
   onCancel: () => void
   // Left to the box unless the caller takes it: prevent the default to keep
   // what was pasted out of the text.
@@ -61,7 +65,7 @@ export function NameBox({
   // screen while it is being made is a second one waiting to be typed into.
   // Staying open, the box is emptied instead and keeps the hand: that is the
   // whole of the fast loop.
-  const take = (andClose: boolean): void => {
+  const take = (andClose: boolean, how: 'enter' | 'blur'): void => {
     if (done.current) return
     const name = value.trim()
     const worth = (name !== '' || allowEmpty) && (commitUnchanged || name !== initial)
@@ -71,10 +75,10 @@ export function NameBox({
     } else {
       setValue('')
     }
-    if (worth) onCommit(name)
+    if (worth) onCommit(name, how)
   }
 
-  const commit = (): void => take(true)
+  const commit = (): void => take(true, 'blur')
 
   return (
     <textarea
@@ -96,7 +100,7 @@ export function NameBox({
           // Enter is the answer here, not a new line. Without this the box
           // would both commit and be left holding a line break.
           event.preventDefault()
-          take(!keepOpen)
+          take(!keepOpen, 'enter')
         }
         if (event.key === 'Escape') {
           // The window owns Escape and would close the card behind this box.

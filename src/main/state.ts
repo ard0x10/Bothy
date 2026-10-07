@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Colors } from '../shared/colors'
 import { readViewport, type Viewport } from '../shared/viewport'
@@ -39,6 +39,11 @@ type AppState = {
   // What a workspace opens on. See shared/opening.ts.
   workspaceOpens?: unknown
   viewports?: Record<string, unknown>
+  // The workspace each vault was left on, keyed by the vault's path, so the
+  // next launch opens where the last one closed. Here and not in the vault for
+  // the viewport's reason: it changes every time a person walks to another
+  // board, and in the vault that is a disk write and a watcher event each time.
+  lastWorkspaces?: Record<string, unknown>
   sidebar?: unknown
   // The keys quick capture is registered under, D3. Here rather than in a
   // vault for the reason the theme is: it is held with the operating system
@@ -107,8 +112,24 @@ export async function writeWorkspaceViewport(
   workspacePath: string,
   viewport: Viewport
 ): Promise<void> {
+  await writeState((state) => ({ viewports: { ...state.viewports, [workspacePath]: viewport } }))
+}
+
+// The workspace this vault was left on, or null when there is none written.
+// Only a path: whether that folder is still a workspace is the window's to
+// decide, against the vault it has just read.
+export async function readLastWorkspace(vaultPath: string): Promise<string | null> {
   const state = await readState()
-  await writeState({ viewports: { ...state.viewports, [workspacePath]: viewport } })
+  const saved = state.lastWorkspaces?.[vaultPath]
+  return typeof saved === 'string' && saved !== '' ? saved : null
+}
+
+// Merged into the map for the viewport's reason: every other vault's answer
+// stays where it was.
+export async function writeLastWorkspace(vaultPath: string, workspacePath: string): Promise<void> {
+  await writeState((state) => ({
+    lastWorkspaces: { ...state.lastWorkspaces, [vaultPath]: workspacePath }
+  }))
 }
 
 // Guarded on the way out as well as on the way in: the renderer is what sends
@@ -122,8 +143,7 @@ export async function knownVaults(): Promise<string[]> {
 // for one: a path that was chosen and then failed to open is not a vault this
 // app knows about, and a menu that offers it is a menu with a dead row in it.
 export async function rememberOpenedVault(path: string): Promise<void> {
-  const state = await readState()
-  await writeState({ vaults: rememberVault(readVaults(state.vaults), path) })
+  await writeState((state) => ({ vaults: rememberVault(readVaults(state.vaults), path) }))
 }
 
 export async function writeSidebar(state: unknown): Promise<SidebarState> {
@@ -132,12 +152,58 @@ export async function writeSidebar(state: unknown): Promise<SidebarState> {
   return clean
 }
 
-export async function writeState(patch: AppState): Promise<void> {
-  const state = { ...(await readState()), ...patch }
-  // After the merge, not inside readState's half of it: readState has just put
-  // what the file held into the caches, and the patch on top of it is the whole
-  // point of this call.
-  panel = readSidebar(state.sidebar)
-  capture = readAccelerator(state.capture) ?? CAPTURE_DEFAULT
-  await writeFile(file(), `${JSON.stringify(state, null, 2)}\n`, 'utf8')
+// One write at a time. Each one reads the file, merges and writes it back, and
+// two of those side by side both read the same file and the second one written
+// throws away the first: picking a workspace from the panel writes where you
+// are and closes the panel, which writes the panel, in the same moment, and the
+// run caught the workspace lost that way.
+let turn: Promise<unknown> = Promise.resolve()
+
+function inTurn<T>(job: () => Promise<T>): Promise<T> {
+  const next = turn.then(job, job)
+  turn = next.catch(() => undefined)
+  return next
+}
+
+// Written beside the file and moved over it, so a read that lands in the
+// middle of a write finds the old file whole rather than half of the new one.
+// readState answers a file it cannot parse with nothing at all, and the run
+// caught that too: a window starting up while the panel was being written saw
+// no vault to open.
+async function replaceFile(text: string): Promise<void> {
+  const target = file()
+  const temporary = `${target}.tmp${process.pid}`
+  await writeFile(temporary, text, 'utf8')
+  for (let tries = 0; ; tries++) {
+    try {
+      await rename(temporary, target)
+      return
+    } catch {
+      // Windows refuses the move for a moment while something else holds the
+      // file open. A few tries, then the plain write, which is what this was
+      // before and still better than losing the change.
+      if (tries < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        continue
+      }
+      await writeFile(target, text, 'utf8')
+      return
+    }
+  }
+}
+
+// The patch, or a function of what the file holds at the moment it is this
+// write's turn: a map merged into, like the viewports, has to be read inside
+// the turn, or the read is the race all over again.
+export async function writeState(patch: AppState | ((state: AppState) => AppState)): Promise<void> {
+  await inTurn(async () => {
+    const was = await readState()
+    const state = { ...was, ...(typeof patch === 'function' ? patch(was) : patch) }
+    // After the merge, not inside readState's half of it: readState has just put
+    // what the file held into the caches, and the patch on top of it is the whole
+    // point of this call.
+    panel = readSidebar(state.sidebar)
+    capture = readAccelerator(state.capture) ?? CAPTURE_DEFAULT
+    await replaceFile(`${JSON.stringify(state, null, 2)}\n`)
+  })
 }

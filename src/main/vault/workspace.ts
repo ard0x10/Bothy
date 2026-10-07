@@ -161,6 +161,12 @@ export async function giveWorkspaceId(workspacePath: string): Promise<string> {
   return id
 }
 
+// The edit waiting on each workspace.json, so two edits to one file take turns.
+// Each reads the file and writes it back whole, and two side by side both read
+// the same file and the second written loses the first: two renames a moment
+// apart left the first name on disk and the second on screen, measured.
+const metaTurns = new Map<string, Promise<unknown>>()
+
 // Every write to workspace.json goes through here, and every one of them is a
 // change to one key. The file is read back first so the keys the app does not
 // own - and the ones a later version will add - ride along untouched.
@@ -169,14 +175,25 @@ async function editMeta(
   change: (meta: Record<string, unknown>) => void
 ): Promise<void> {
   const file = join(workspacePath, 'workspace.json')
-  let meta: Record<string, unknown>
-  try {
-    meta = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>
-  } catch {
-    // Missing or unreadable. The edit should still land, so it is rebuilt with
-    // the defaults the reader would have used anyway.
-    meta = { id: newId('w'), lastTab: 'kanban', labels: [] }
+  const job = async (): Promise<void> => {
+    let meta: Record<string, unknown>
+    try {
+      meta = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>
+    } catch {
+      // Missing or unreadable. The edit should still land, so it is rebuilt with
+      // the defaults the reader would have used anyway.
+      meta = { id: newId('w'), lastTab: 'kanban', labels: [] }
+    }
+    change(meta)
+    await writeText(file, `${JSON.stringify(meta, null, 2)}\n`)
   }
-  change(meta)
-  await writeText(file, `${JSON.stringify(meta, null, 2)}\n`)
+  const next = (metaTurns.get(file) ?? Promise.resolve()).then(job, job)
+  const settled = next.catch(() => undefined)
+  metaTurns.set(file, settled)
+  // Let go of the file once nothing is waiting on it, so the map holds only
+  // the files being written rather than every one ever touched.
+  void settled.then(() => {
+    if (metaTurns.get(file) === settled) metaTurns.delete(file)
+  })
+  await next
 }

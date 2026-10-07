@@ -25,10 +25,12 @@ import type { Column, Template, Workspace } from '../../../shared/types'
 import {
   COLOR_PRESETS,
   GRADIENT_PRESETS,
+  PHOTO_PRESETS,
   backgroundCss,
   sameBackground,
   type Background
 } from '../../../shared/background'
+import { fileUrl, stockUrl } from '../../../shared/image'
 import { useVault, useWorkspace } from '../store'
 import {
   COLUMN_PREFIX,
@@ -47,7 +49,9 @@ import { FilterBar, FilterToggle } from './FilterBar'
 import { CardTile } from './CardTile'
 import { NameBox } from './NameBox'
 import { SortableCard } from './SortableCard'
+import { CardHold } from './CardHold'
 import { Icon } from './Icon'
+import { MoveMenu } from './MoveMenu'
 import { useMenu } from './useMenu'
 
 function ColumnBody({
@@ -63,6 +67,7 @@ function ColumnBody({
   const { setNodeRef, isOver } = useDroppable({ id: `${COLUMN_PREFIX}${column.id}` })
   const openId = useVault((state) => state.openId)
   const openCard = useVault((state) => state.openCard)
+  const openCardMenu = useVault((state) => state.openCardMenu)
   const landedIn = useVault((state) => state.landedIn)
   const landed = useVault((state) => state.landed)
   const box = useRef<HTMLDivElement | null>(null)
@@ -119,6 +124,7 @@ function ColumnBody({
               workspace={workspace}
               open={id === openId}
               onOpen={() => openCard(id)}
+              onHold={(rect) => openCardMenu({ id, rect })}
             />
           ) : null
         })}
@@ -230,6 +236,7 @@ function ColumnHead({
         {column.wipLimit ? ` / ${column.wipLimit}` : ''}
       </span>
       <ColumnMenu
+        columnId={column.id}
         first={first}
         last={last}
         onRename={() => setRenaming(true)}
@@ -247,13 +254,19 @@ function ColumnHead({
 // hovered: rename, move left, move right, delete. One ⋯ at the right
 // end of the head, with the card count just before it. The rows carry the
 // titles the marks did.
+//
+// Moving it to another workspace is a second page in the same box, v0.5, the
+// way the board's ⋯ opens the background picker: the rows above are about this
+// board, and a list of other boards is a different question.
 function ColumnMenu({
+  columnId,
   first,
   last,
   onRename,
   onMove,
   onDelete
 }: {
+  columnId: string
   first: boolean
   last: boolean
   onRename: () => void
@@ -261,6 +274,9 @@ function ColumnMenu({
   onDelete: () => void
 }) {
   const { open, setOpen, box } = useMenu()
+  const [page, setPage] = useState<'menu' | 'move'>('menu')
+  const workspacePath = useVault((state) => state.workspacePath)
+  const moveColumnTo = useVault((state) => state.moveColumnTo)
   const act = (run: () => void): void => {
     setOpen(false)
     run()
@@ -274,12 +290,28 @@ function ColumnMenu({
         aria-label="Column actions"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          // Opened on its first page however it was left, so the ⋯ always
+          // answers with the same rows.
+          setPage('menu')
+          setOpen(!open)
+        }}
       >
         <Icon name="more" />
       </button>
 
-      {open && (
+      {open && page === 'move' && workspacePath !== null && (
+        <div className="column-menu" role="menu">
+          <MoveMenu
+            from={workspacePath}
+            column={false}
+            onBack={() => setPage('menu')}
+            onPick={(path) => act(() => void moveColumnTo(columnId, path))}
+          />
+        </div>
+      )}
+
+      {open && page === 'menu' && (
         <div className="column-menu" role="menu">
           <button
             className="column-menu-item"
@@ -309,6 +341,18 @@ function ColumnMenu({
           >
             <Icon name="arrow-right" />
             Move right
+          </button>
+          {/* Under the two that move it along this board, and over the one
+              that ends it: the three rows that move the column are together,
+              and the last row is still the one nothing comes after. */}
+          <button
+            className="column-menu-item"
+            role="menuitem"
+            title="Move column to another workspace"
+            onClick={() => setPage('move')}
+          >
+            <Icon name="transfer" />
+            Move to…
           </button>
           <button
             className="column-menu-item"
@@ -528,6 +572,8 @@ function BoardMenu({
   bookmarked: boolean
 }) {
   const setBackground = useVault((state) => state.setBackground)
+  const setBackgroundPhoto = useVault((state) => state.setBackgroundPhoto)
+  const pickBackgroundImage = useVault((state) => state.pickBackgroundImage)
   const setBookmark = useVault((state) => state.setBookmark)
   const exportKanban = useVault((state) => state.exportKanban)
   // The same three ways out as the card's and the column's menus.
@@ -557,6 +603,10 @@ function BoardMenu({
   const ownGradient =
     background?.type === 'gradient' &&
     !GRADIENT_PRESETS.some(([a, b]) => chosen({ type: 'gradient', from: a, to: b }))
+  // A picture that is not one of the app's own. Its copy is in this workspace's
+  // files/ like any other, so what tells them apart is the name it was given
+  // there, which for one of ours is the name it arrived with.
+  const ownPicture = background?.type === 'image' && !PHOTO_PRESETS.includes(background.name)
 
   const swatch = (value: Background, label: string) => {
     const on = chosen(value)
@@ -567,8 +617,30 @@ function BoardMenu({
         role="menuitemradio"
         aria-checked={on}
         title={label}
-        style={{ background: backgroundCss(value) }}
+        style={{ background: backgroundCss(value, path) }}
         onClick={() => pick(value)}
+      />
+    )
+  }
+
+  // The shipped pictures are drawn from where they sit rather than from the
+  // copy a press would make, so the row looks the same in a workspace that has
+  // taken one and in one that never has.
+  const photo = (name: string) => {
+    const on = background?.type === 'image' && background.name === name
+    // Named after its file, since the file is the only thing that knows what
+    // the picture is. It reads as a name once the words are the picture's own.
+    const label = name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')
+    return (
+      <button
+        key={name}
+        className={on ? 'background-photo is-on' : 'background-photo'}
+        role="menuitemradio"
+        aria-checked={on}
+        title={label}
+        aria-label={label}
+        style={{ backgroundImage: `url("${stockUrl(name)}")` }}
+        onClick={() => void setBackgroundPhoto(name)}
       />
     )
   }
@@ -726,6 +798,38 @@ function BoardMenu({
                   onChange={(event) => pick({ type: 'gradient', from, to: event.target.value })}
                 />
               </div>
+
+              {/* Wider tiles than the colours get, because what is being
+                  chosen is a picture and a picture has a shape. */}
+              <p className="board-menu-group">Photo</p>
+              <div className="background-photos">{PHOTO_PRESETS.map((name) => photo(name))}</div>
+
+              {/* Under a line and named for itself, the way the card's file
+                  sits at the foot of its menu. Directly under the row of
+                  pictures it read as the step after choosing one of them,
+                  rather than as the other way to get a ground.
+                  The picture the person brought stands here rather than at the
+                  end of that row, for the same reason: it is not one of the
+                  app's, and this is where the ones that are not live. */}
+              <div className="background-yours">
+                <p className="board-menu-group">Your own picture</p>
+                {ownPicture && background.type === 'image' && (
+                  <span
+                    className="background-photo is-own is-on"
+                    title={background.name}
+                    style={{ backgroundImage: `url("${fileUrl(path, background.name)}")` }}
+                  />
+                )}
+                <button
+                  className="board-menu-item"
+                  role="menuitem"
+                  data-act="picture"
+                  title="A picture from this machine, copied into the workspace"
+                  onClick={() => void pickBackgroundImage()}
+                >
+                  Choose a picture…
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -860,6 +964,16 @@ export function Kanban() {
   // switch to another workspace. Found: one met on a board stood over
   // the next board opened. Dropped when the workspace changes.
   useEffect(() => setRefused(null), [workspace?.path])
+  // The name at the top being typed over. Put down when the board changes, so
+  // the box never opens on one workspace holding another one's name.
+  const [naming, setNaming] = useState(false)
+  useEffect(() => setNaming(false), [workspace?.path])
+  const cardMenu = useVault((state) => state.cardMenu)
+  const closeCardMenu = useVault((state) => state.closeCardMenu)
+  // A held card is a box measured on this board, at this scroll, in this
+  // workspace. Walking to another board or to another view puts it down rather
+  // than leaving it to come back later over cards that have moved.
+  useEffect(() => closeCardMenu, [workspace?.path, closeCardMenu])
   const filter = useVault((state) => state.filter)
   const notice = useVault((state) => state.notice)
   const setNotice = useVault((state) => state.setNotice)
@@ -1010,7 +1124,25 @@ export function Kanban() {
     <div className="kanban">
       <header className="kanban-head">
         <div className="kanban-title">
-          <h1>{workspace.name}</h1>
+          {/* Renamed where it is read, through the same write the panel's
+              Rename makes: the name lives in workspace.json and the folder never
+              moves, so everything that finds a workspace by its path or its id
+              goes on finding it. */}
+          {naming ? (
+            <NameBox
+              className="kanban-rename"
+              placeholder="Workspace name"
+              initial={workspace.name}
+              onCommit={(name) => void useVault.getState().renameWorkspace(workspace.path, name)}
+              onCancel={() => setNaming(false)}
+            />
+          ) : (
+            <h1>
+              <button className="kanban-name" title="Rename workspace" onClick={() => setNaming(true)}>
+                {workspace.name}
+              </button>
+            </h1>
+          )}
           {/* The filter first and the ⋯ at the end, where a column
               keeps its own. */}
           <div className="kanban-tools">
@@ -1069,7 +1201,15 @@ export function Kanban() {
         <div
           className="columns"
           style={
-            workspace.background ? { background: backgroundCss(workspace.background) } : undefined
+            workspace.background
+              ? { background: backgroundCss(workspace.background, workspace.path) }
+              : undefined
+          }
+          // What the PNG export needs to give the ground its bytes. The
+          // stylesheet reaches a picture down a scheme of ours, and a drawing
+          // of the board reaches nothing outside itself.
+          data-ground-file={
+            workspace.background?.type === 'image' ? workspace.background.name : undefined
           }
           onPointerDown={onPanStart}
           onPointerMove={onPan}
@@ -1107,6 +1247,10 @@ export function Kanban() {
             <AddColumn />
           )}
         </div>
+
+        {cardMenu && (
+          <CardHold held={cardMenu} workspace={workspace} onDone={closeCardMenu} />
+        )}
 
         <DragOverlay>
           {draggedCard ? (

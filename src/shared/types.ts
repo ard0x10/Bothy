@@ -206,3 +206,11 @@ export type TrashEntry = {
 export type OpenResult = 'opened' | 'refused' | 'failed'
 
 export type RestoreResult = { ok: true; path: string } | { ok: false; why: string }
+
+// One card's answer to being moved to another workspace, v0.5. `id` is the id
+// it had where it came from, which is what the board still knows it by; the
+// card that comes back is the one on disk in its new folder, with the names its
+// pictures took there. `notes` is what the move had to say about those names.
+export type CardMoved =
+  | { ok: true; id: string; card: Card; notes: string[] }
+  | { ok: false; id: string; why: string }

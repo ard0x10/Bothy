@@ -18,38 +18,62 @@ export type AppAction =
   | 'canvas'
   | 'calendar'
   | 'workspaces'
+  | 'sidebar'
   | 'save'
   | 'close'
+
+// Where a key answers. 'app' is anywhere in the window; 'board' is the kanban
+// and nowhere else. The sheet reads this rather than being told, so a key that
+// only works on the board cannot be listed under a heading that says otherwise.
+export type AppWhere = 'app' | 'board'
 
 export type AppKey = {
   action: AppAction
   label: string
+  where: AppWhere
   ctrl: boolean
   // Matched against event.key, lowercased. The canvas matches on event.code
   // instead, because zoom lands on whichever key carries `=` on a layout; these
   // are letters and digits a person is told about by name.
   key: string
+  // A second key for the same action, under the same modifier. Held on the row
+  // rather than written as a row of its own, so the sheet says it once beside
+  // the first one and the handler cannot answer one and not the other.
+  also?: string
 }
 
 export const APP_KEYS: AppKey[] = [
-  { action: 'palette', label: 'Search and commands', ctrl: true, key: 'p' },
-  { action: 'new-card', label: 'New card', ctrl: true, key: 'n' },
-  { action: 'kanban', label: 'Board', ctrl: true, key: '1' },
-  { action: 'canvas', label: 'Canvas', ctrl: true, key: '2' },
-  { action: 'calendar', label: 'Calendar', ctrl: true, key: '3' },
-  { action: 'workspaces', label: 'Switch workspace', ctrl: true, key: '4' },
-  { action: 'save', label: 'Save the open card', ctrl: true, key: 's' },
+  { action: 'palette', label: 'Search and commands', where: 'app', ctrl: true, key: 'p' },
+  { action: 'new-card', label: 'New card', where: 'app', ctrl: true, key: 'n' },
+  { action: 'kanban', label: 'Board', where: 'app', ctrl: true, key: '1' },
+  { action: 'canvas', label: 'Canvas', where: 'app', ctrl: true, key: '2' },
+  { action: 'calendar', label: 'Calendar', where: 'app', ctrl: true, key: '3' },
+  // Space as well, for a hand that is already on the space bar: the switcher
+  // is the one sheet reached for often enough to want a key that needs no
+  // looking for. Held to the modifier, so the bare space of the board below is
+  // still the board's.
+  { action: 'workspaces', label: 'Switch workspace', where: 'app', ctrl: true, key: '4', also: ' ' },
+  { action: 'save', label: 'Save the open card', where: 'app', ctrl: true, key: 's' },
   // No modifier, and it is in the table rather than beside it because it is the
   // key most people try first. What it closes depends on what is open, which
   // the handler decides; the sheet only has to say that it does.
-  { action: 'close', label: 'Close what is open', ctrl: false, key: 'escape' }
+  { action: 'close', label: 'Close what is open', where: 'app', ctrl: false, key: 'escape' },
+  // The board's own, and the first key here that is a bare space. It is on the
+  // board alone for what a space does elsewhere: on the canvas it is the hand
+  // that pulls the view about, and in a box it is a word break. The handler
+  // holds it to the board, to nothing being typed into, and to nothing standing
+  // over the board.
+  { action: 'sidebar', label: 'Show or hide the sidebar', where: 'board', ctrl: false, key: ' ' }
 ]
 
-const KEY_TEXT: Record<string, string> = { escape: 'Esc' }
+const KEY_TEXT: Record<string, string> = { escape: 'Esc', ' ': 'Space' }
 
 export function appKeyText(key: AppKey): string {
-  const name = KEY_TEXT[key.key] ?? key.key.toUpperCase()
-  return key.ctrl ? 'Ctrl + ' + name : name
+  const one = (part: string): string => {
+    const name = KEY_TEXT[part] ?? part.toUpperCase()
+    return key.ctrl ? 'Ctrl + ' + name : name
+  }
+  return key.also === undefined ? one(key.key) : one(key.key) + ', ' + one(key.also)
 }
 
 // What main registered with the system, said the way the rest of the sheet says
@@ -76,7 +100,7 @@ export function matchAppKey(event: AppKeyLike): AppAction | null {
   const key = event.key.toLowerCase()
   for (const binding of APP_KEYS) {
     if (binding.ctrl !== ctrl) continue
-    if (binding.key === key) return binding.action
+    if (binding.key === key || binding.also === key) return binding.action
   }
   return null
 }

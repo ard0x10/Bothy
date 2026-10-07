@@ -198,6 +198,33 @@ export function App() {
         state.openSwitcher(!state.switcherOpen)
         return
       }
+      // The board's own key, v0.5. It is the one bare space in the app, so what
+      // guards it is the list of everything else a space already means:
+      // something being typed into, a button or a link under the focus, whose
+      // press this is, a sheet or a menu over the board, and a card open in
+      // front of it. Held to the kanban as well - the canvas holds space down
+      // to pull the view about, and the calendar is not what the panel lists.
+      if (bound === 'sidebar') {
+        const at = event.target as HTMLElement | null
+        if (
+          state.tab !== 'kanban' ||
+          isTyping(event.target) ||
+          at?.closest?.('button, a, [role="button"], [role="menuitem"]') ||
+          state.paletteOpen ||
+          state.switcherOpen ||
+          state.keysOpen ||
+          state.archiveOpen ||
+          state.trashOpen ||
+          state.vaultMenuOpen ||
+          state.cardMenu !== null ||
+          state.openId !== null
+        ) {
+          return
+        }
+        event.preventDefault()
+        state.toggleSidebar()
+        return
+      }
       // The canvas keys, and only while the canvas is what is on screen: they
       // are Ctrl and a digit, which means something else everywhere the canvas
       // is not. Matched through the same table the help sheet renders, so the
