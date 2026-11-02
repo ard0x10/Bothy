@@ -49,6 +49,8 @@ export const IPC = {
   createImageCard: 'card:create-from-image',
   saveColumns: 'columns:save',
   createWorkspace: 'workspace:create',
+  // The welcome screen's example, a workspace with cards already in it.
+  createExampleWorkspace: 'workspace:create-example',
   renameWorkspace: 'workspace:rename',
   setWorkspaceTab: 'workspace:tab',
   // Which workspace a vault was left on, read as it opens and written each

@@ -170,19 +170,19 @@ export const COLOR_PRESETS: readonly string[] = [
 // does, so nothing here is a name only this app can resolve: what lands in
 // workspace.json is a file sitting next to it.
 //
-// They are white while there are no photographs to put here yet. The names are
-// the thing to keep when the pictures arrive - a workspace already wearing
-// photo-3 keeps wearing it, because its own copy is in its own folder. Each
-// white one carries its own name inside the file, because a copy is settled by
-// content: six files holding the same bytes would be one file in the folder,
-// and picking the third would leave the first one ticked.
+// The picker's tile is labelled from the file name, so each name says what the
+// picture shows. JPEG rather than PNG: they are painted textures at window
+// size, and every pick copies one into a workspace, so the format that keeps
+// them under two megabytes each is the one that matters.
+//
+// A workspace that took one of the white stand-ins these replaced (photo-1 to
+// photo-6) keeps it: its own copy is in its own folder, and with the name no
+// longer on this list it is offered as the person's own picture instead.
 export const PHOTO_PRESETS: readonly string[] = [
-  'photo-1.png',
-  'photo-2.png',
-  'photo-3.png',
-  'photo-4.png',
-  'photo-5.png',
-  'photo-6.png'
+  'chrome-figure.jpg',
+  'red-racer.jpg',
+  'snowboard.jpg',
+  'starry-night.jpg'
 ]
 
 export const GRADIENT_PRESETS: readonly (readonly [string, string])[] = [

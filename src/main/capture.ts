@@ -30,17 +30,17 @@ let box: BrowserWindow | null = null
 // the window's own state, and asking the disk would only ever guess.
 let target: CaptureTarget = { places: [], path: null }
 
-// The box's width, and its height with nothing open in it: the 1px edge, 16 of
+// The box's width, and its height with nothing open in it: the 2px edge, 16 of
 // room, the input, 8, the row of menus, 16 of room and the edge again.
 // It was a fixed 168, and the 62 under the menus held nothing. It is what
 // the box opens at, so the first frame is already the right shape; after that
 // the box says how tall it is itself (see fitCapture).
 const WIDTH = 560
-const RESTING = 1 + 16 + 32 + 8 + 32 + 16 + 1
+const RESTING = 2 + 16 + 32 + 8 + 32 + 16 + 2
 // The input alone, which is what is left when there is no workspace to offer,
 // and the most a list can ask for. The list scrolls inside its own 168 long
 // before the second, so it only stops a torn number reaching the window.
-const SHORTEST = 1 + 16 + 32 + 16 + 1
+const SHORTEST = 2 + 16 + 32 + 16 + 2
 const TALLEST = 480
 
 export function setCaptureTarget(next: CaptureTarget): void {

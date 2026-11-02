@@ -62,7 +62,16 @@ its changes show a short notice that can be turned off. For agents without MCP,
 
 ### Download (Windows)
 
-Get `Bothy-Setup-<version>.exe` from the latest release on the
+One command in PowerShell downloads the installer from the latest release and runs it:
+
+```powershell
+irm https://raw.githubusercontent.com/ard0x10/Bothy/main/install.ps1 | iex
+```
+
+It runs [`install.ps1`](install.ps1) from this repository, which is short enough to
+read first.
+
+To do it by hand, get `Bothy-Setup-<version>.exe` from the latest release on the
 [releases page](https://github.com/ard0x10/Bothy/releases) and run it. It installs for
 your user only, without asking for administrator rights, and puts Bothy in the Start
 Menu. To keep it in a folder of your own instead, take `Bothy-<version>-windows.zip`,

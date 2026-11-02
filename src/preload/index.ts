@@ -158,6 +158,8 @@ const api = {
     ipcRenderer.invoke(IPC.setViewport, workspacePath, viewport),
   createWorkspace: (vaultPath: string, name: string): Promise<string> =>
     ipcRenderer.invoke(IPC.createWorkspace, vaultPath, name),
+  createExampleWorkspace: (vaultPath: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.createExampleWorkspace, vaultPath),
   renameWorkspace: (workspacePath: string, name: string): Promise<void> =>
     ipcRenderer.invoke(IPC.renameWorkspace, workspacePath, name),
   setWorkspaceTab: (workspacePath: string, tab: Tab): Promise<void> =>

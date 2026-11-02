@@ -1,6 +1,6 @@
 {
   "name": "bothy",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Local-first kanban and canvas workspace",
   "author": "ard0x10",

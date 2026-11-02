@@ -271,8 +271,52 @@ button {
   padding: 8px 16px;
 }
 
-.welcome-button:hover {
+.welcome-button:hover:not(:disabled) {
   background: var(--bg-card-hover);
+}
+
+.welcome-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The same screen once a vault is open but holds no workspace, standing in the
+   content beside the sidebar rather than on the whole window. */
+.vault-welcome {
+  flex: 1;
+  padding: 24px;
+  text-align: center;
+}
+
+.vault-welcome-new {
+  display: flex;
+  gap: 8px;
+  width: min(360px, 100%);
+  margin-top: 6px;
+}
+
+.vault-welcome-name {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h);
+  box-sizing: border-box;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  outline: none;
+}
+
+.vault-welcome-name:focus {
+  border-color: var(--accent);
+}
+
+.vault-welcome-or {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-small);
 }
 
 /* Frame */
@@ -2072,19 +2116,19 @@ button {
   color: var(--text-dim);
 }
 
-/* Three across rather than five: what is being chosen is a picture, and a
-   picture needs a shape to be recognised in. At the menu's width that is a
-   67 by 40 tile, near enough the shape of a window for the crop on the tile to
-   be the crop on the board. */
+/* Two across rather than five: what is being chosen is a picture, and a
+   picture needs a shape to be recognised in. Four of them sit two by two
+   rather than three and one left over, and each tile is the shape of a window,
+   so the crop on the tile is the crop on the board. */
 .background-photos {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   padding: 0 8px;
 }
 
 .background-photo {
-  height: 40px;
+  aspect-ratio: 16 / 10;
   border-radius: var(--radius-control);
   box-shadow: 0 0 0 1px var(--border);
   /* Under the picture while it is being fetched, and the whole of the tile if
@@ -2695,12 +2739,15 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
 
 .panel-cover {
   flex: none;
+  width: 100%;
   height: 160px;
+  padding: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
+  cursor: zoom-in;
 }
 
 .panel-cover-image {
@@ -2708,6 +2755,27 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* A picture of the open card on its own: over the panel and the sheets, under
+   the palette, in the middle of the window both ways. Its natural size, held
+   inside the window with a margin of scrim on every side. */
+.picture-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+}
+
+.picture-image {
+  display: block;
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: var(--radius-control);
+  box-shadow: var(--lift-sheet);
 }
 
 .panel.has-cover .panel-head {
@@ -3292,6 +3360,11 @@ body:has(.drag-overlay, .column-overlay, .columns.is-panning, .calendar-bar.is-o
   overflow: hidden;
   border-radius: var(--radius-control);
   background: var(--bg-card);
+}
+
+.attach-thumb.is-picture {
+  padding: 0;
+  cursor: zoom-in;
 }
 
 .attach-thumb img {
@@ -4570,10 +4643,12 @@ button.add-column:hover {
 
 /* The capture window is frameless and has nothing behind it, so the whole page
    is the box. It gets a border of its own because without a frame there is
-   nothing else to say where it ends, and it is the line every other surface
-   uses: the box was ringed in the accent, and a coloured edge on a box that is
-   only a line of text is decoration. Nothing in it wears the accent now except
-   the column already chosen in an open menu. */
+   nothing else to say where it ends. The box opens over whatever else is on
+   screen, often a window of the same dark, so its edge is twice the line the
+   surfaces inside the app use and in the quiet text colour: it has to stand
+   apart from things this app did not draw. Not the accent: a coloured edge on
+   a box that is only a line of text is decoration. Nothing in it wears the
+   accent except the column already chosen in an open menu. */
 body.is-capture {
   background: var(--bg-column);
 }
@@ -4585,7 +4660,7 @@ body.is-capture {
   height: 100vh;
   box-sizing: border-box;
   padding: 16px 18px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--text-dim);
   border-radius: var(--radius-surface);
   background: var(--bg-column);
   /* The one place in the app a whole window can be dragged by its background:
@@ -4603,18 +4678,30 @@ body.is-capture {
 
 /* The text sits on the box itself, with no field drawn round it: the box is
    the field. The caret says where typing goes. Lined up with the menus' text
-   under it by the same 9 of padding. */
+   under it by the same 9 of padding.
+
+   As tall as the lines in it, from one at the height of a control to four,
+   and it scrolls inside after that. One line of 20 and 6 over and under is
+   the 32 of the menus beside it, so a short title stands as it always did. */
 .capture-input {
   -webkit-app-region: no-drag;
-  padding: 0 9px;
+  display: block;
+  box-sizing: border-box;
+  padding: 6px 9px;
   background: none;
   border: 0;
   border-radius: var(--radius-control);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-title);
+  line-height: 20px;
   outline: none;
-  height: var(--control-h);
+  resize: none;
+  field-sizing: content;
+  min-height: var(--control-h);
+  max-height: calc(4 * 20px + 12px);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* The box closes and the card is not on screen afterwards, so this line is the

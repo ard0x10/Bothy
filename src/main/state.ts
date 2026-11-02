@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Colors } from '../shared/colors'
 import { readViewport, type Viewport } from '../shared/viewport'
@@ -187,6 +187,8 @@ async function replaceFile(text: string): Promise<void> {
         continue
       }
       await writeFile(target, text, 'utf8')
+      // The staged copy was never moved, and no later run writes this name.
+      await rm(temporary, { force: true }).catch(() => undefined)
       return
     }
   }

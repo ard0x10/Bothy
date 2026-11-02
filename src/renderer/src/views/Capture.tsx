@@ -19,7 +19,7 @@ export function Capture() {
   // settled on and the answer placeIn gives.
   const [picked, setPicked] = useState<CaptureWhere | null>(null)
   const [open, setOpen] = useState<'workspace' | 'column' | null>(null)
-  const field = useRef<HTMLInputElement | null>(null)
+  const field = useRef<HTMLTextAreaElement | null>(null)
   const shell = useRef<HTMLDivElement | null>(null)
   const asked = useRef(0)
 
@@ -93,18 +93,27 @@ export function Capture() {
     void window.api.submitCapture(title, where)
   }
 
+  // The text wraps rather than running off the left edge, so what was written
+  // first is still there to read while the end is being written. It is still a
+  // title: Enter sends it and never starts a line, and a pasted line break
+  // becomes a space. The field grows to four lines and scrolls inside after
+  // that, and the box grows with it through the measure above.
   return (
     <div className="capture" ref={shell}>
-      <input
+      <textarea
         ref={field}
         className="capture-input"
         autoFocus
+        rows={1}
         spellCheck={false}
         placeholder="What is it?"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => setValue(event.target.value.replace(/\r?\n/g, ' '))}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') send()
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            send()
+          }
           // Escape closes an open menu first, and only puts the box down when
           // there is none. Otherwise the gesture that means "not that one"
           // would throw away what has already been typed.

@@ -4,6 +4,7 @@ import type { AiSettings, ChangeNotices } from '../shared/ai'
 import type { Colors } from '../shared/colors'
 import type { SidebarState } from '../shared/sidebar'
 import { IPC } from '../shared/ipc'
+import { acceleratorText } from '../shared/keys'
 import type {
   CaptureTarget,
   CaptureWhere,
@@ -41,6 +42,7 @@ import {
   showCapture
 } from './capture'
 import { showSettings } from './settings'
+import { createExampleWorkspace } from './vault/example'
 import {
   openThemesFolder,
   saveTheme,
@@ -551,6 +553,14 @@ export function registerIpc(window: BrowserWindow): void {
     IPC.createWorkspace,
     async (_event, vaultPath: string, name: string): Promise<string> =>
       createWorkspace(vaultPath, name)
+  )
+
+  // The example's cards name the capture key, so they are handed the one in
+  // use now, written the way the help sheet writes it.
+  ipcMain.handle(
+    IPC.createExampleWorkspace,
+    async (_event, vaultPath: string): Promise<string> =>
+      createExampleWorkspace(vaultPath, acceleratorText(captureStatus().accelerator, process.platform))
   )
 
   // Told to every window afterwards, because the settings window lists the

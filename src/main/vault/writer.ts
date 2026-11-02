@@ -1,5 +1,5 @@
-import { readFile, rename, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
 import type { SaveResult } from '../../shared/types'
 import { hashText } from './hash'
 
@@ -64,10 +64,40 @@ async function write(file: string, text: string): Promise<void> {
     await writeFile(temp, text, 'utf8')
     await renameOnceFree(temp, file)
   } catch (error) {
-    // The real file was never touched, so drop the claim we just made.
+    // The real file was never touched, so drop the claim we just made, and the
+    // staged copy with it. Left behind, it stays for good: the next run stages
+    // under another process id and never writes this name again.
     written.delete(key(file))
+    await rm(temp, { force: true }).catch(() => undefined)
     throw error
   }
+}
+
+// Staged copies other runs left in a folder before a failed write cleaned up
+// after itself, for the given files only. A minute old at least, so a second
+// window's write still in flight is not taken from under it.
+export async function sweepStaleTemps(dir: string, files: string[], olderThanMs = 60_000): Promise<string[]> {
+  const shape = new RegExp(`^(${files.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\.tmp(\\d+)$`)
+  const swept: string[] = []
+  let names: string[]
+  try {
+    names = await readdir(dir)
+  } catch {
+    return swept
+  }
+  for (const name of names) {
+    const match = shape.exec(name)
+    if (!match || Number(match[2]) === process.pid) continue
+    const path = join(dir, name)
+    try {
+      if (Date.now() - (await stat(path)).mtimeMs < olderThanMs) continue
+      await rm(path, { force: true })
+      swept.push(name)
+    } catch {
+      // Gone already, or held by something; the next start tries again.
+    }
+  }
+  return swept
 }
 
 // The name a write is staged under before it is renamed into place. The

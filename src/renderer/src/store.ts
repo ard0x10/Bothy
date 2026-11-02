@@ -136,6 +136,12 @@ type State = {
   // opens covers the window, while the card itself is inside a column that
   // scrolls and can lay nothing over anything.
   cardMenu: CardHold | null
+  // A picture of the open card shown on its own over everything but the
+  // palette: the cover, or one from Files. Opening and closing a card put it
+  // away, and it names the card it belongs to, so the other ways a card stops
+  // being open need not each remember to: one that is not the open card's is
+  // simply not shown.
+  picture: { cardId: string; name: string } | null
 
   // The palette is one surface for search, navigation and commands. Its seed is
   // what the box starts out holding, so a shortcut can drop the user straight
@@ -434,6 +440,7 @@ type State = {
   dragSidebar: (width: number, commit: boolean) => void
 
   addWorkspace: (name: string) => Promise<void>
+  addExampleWorkspace: () => Promise<void>
   renameWorkspace: (path: string, name: string) => Promise<void>
   // The ground of the board on screen. Null takes it away.
   setBackground: (background: Background | null) => Promise<void>
@@ -463,6 +470,7 @@ type State = {
   openCardMenu: (held: CardHold) => void
   closeCardMenu: () => void
   openCard: (id: string) => void
+  showPicture: (name: string | null) => void
   openCardAt: (workspacePath: string, cardId: string) => Promise<void>
   closeCard: () => Promise<void>
   editCard: (patch: Partial<Card>) => void
@@ -968,6 +976,7 @@ export const useVault = create<State>((set, get) => ({
   dirty: false,
   conflict: null,
   cardMenu: null,
+  picture: null,
   paletteOpen: false,
   paletteSeed: '',
   composingIn: null,
@@ -1932,6 +1941,14 @@ export const useVault = create<State>((set, get) => ({
     await get().select(path)
   },
 
+  addExampleWorkspace: async () => {
+    const { vault } = get()
+    if (!vault) return
+    const path = await window.api.createExampleWorkspace(vault.path)
+    await get().reload()
+    await get().select(path)
+  },
+
   // On screen first, on disk behind it. The box closes on Enter, and waiting
   // for the vault to be read again left the old name standing where the box had
   // been for about a third of a second, measured. Main cleans the name up the
@@ -2271,7 +2288,12 @@ export const useVault = create<State>((set, get) => ({
 
   openCard: (id) => {
     const card = currentWorkspace(get())?.cards.find((entry) => entry.id === id)
-    if (card) set({ openId: id, draft: { ...card }, dirty: false, conflict: null })
+    if (card) set({ openId: id, draft: { ...card }, dirty: false, conflict: null, picture: null })
+  },
+
+  showPicture: (name) => {
+    const { openId } = get()
+    set({ picture: name && openId ? { cardId: openId, name } : null })
   },
 
   // A search hit may live in a workspace that is not the one on screen, so
@@ -2290,7 +2312,7 @@ export const useVault = create<State>((set, get) => ({
     // Autosave runs on a timer, so closing early would drop the last keystrokes.
     if (get().dirty) await get().saveDraft()
     if (get().conflict) return
-    set({ openId: null, draft: null, dirty: false })
+    set({ openId: null, draft: null, dirty: false, picture: null })
   },
 
   editCard: (patch) => {

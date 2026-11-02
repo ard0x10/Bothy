@@ -11,7 +11,9 @@ import { Palette } from './views/Palette'
 import { Trash } from './views/Trash'
 import { Archive } from './views/Archive'
 import { Keys } from './views/Keys'
+import { Picture } from './views/Picture'
 import { Switcher } from './views/Switcher'
+import { Welcome } from './views/Welcome'
 import { APP_NAME } from '../../shared/app'
 import { matchKey } from '../../shared/viewport'
 import { matchAppKey } from '../../shared/keys'
@@ -245,10 +247,11 @@ export function App() {
         if (state.dirty) void state.saveDraft()
         return
       }
-      // Top down, one owner. The palette sits over the two sheets, which sit
-      // over the card panel.
+      // Top down, one owner. The palette sits over a picture, which sits over
+      // the two sheets, which sit over the card panel.
       if (bound === 'close') {
         if (state.paletteOpen) state.closePalette()
+        else if (state.picture && state.picture.cardId === state.openId) state.showPicture(null)
         else if (state.keysOpen) state.setKeys(false)
         else if (state.switcherOpen) state.openSwitcher(false)
         else if (state.vaultMenuOpen) state.openVaultMenu(false)
@@ -282,17 +285,27 @@ export function App() {
     <div className="layout">
       <Sidebar />
       <main className="content">
-        {tab === 'kanban' ? <Kanban /> : tab === 'calendar' ? <Calendar /> : <Canvas />}
-        {/* The panel opens over the calendar too. A card reached from there is
-            in whichever workspace owns it - openCardAt selects that folder
-            first - so what the panel shows is always the card's own labels and
-            columns, never the ones that happened to be on screen. */}
-        {tab !== 'canvas' && <CardPanel as={cardView} />}
-        <TabBar />
+        {/* An empty vault has no board, canvas or dated card to show, so the
+            views and the bar that switches between them give way to the
+            welcome until there is a workspace. */}
+        {vault.workspaces.length === 0 ? (
+          <Welcome />
+        ) : (
+          <>
+            {tab === 'kanban' ? <Kanban /> : tab === 'calendar' ? <Calendar /> : <Canvas />}
+            {/* The panel opens over the calendar too. A card reached from there is
+                in whichever workspace owns it - openCardAt selects that folder
+                first - so what the panel shows is always the card's own labels and
+                columns, never the ones that happened to be on screen. */}
+            {tab !== 'canvas' && <CardPanel as={cardView} />}
+            <TabBar />
+          </>
+        )}
       </main>
       <Trash />
       <Archive />
       <Keys />
+      <Picture />
       <Switcher />
       <Palette />
     </div>

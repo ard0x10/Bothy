@@ -630,13 +630,23 @@ function Attachments({
             if (onCover) classes.push('is-cover')
             return (
               <li className={classes.join(' ')} key={name + index}>
-                <span className="attach-thumb">
-                  {picture ? (
+                {/* A picture's thumbnail opens it over the window, the way the
+                    cover does; the open button beside it is still the way to
+                    the program the system keeps for it. */}
+                {picture ? (
+                  <button
+                    className="attach-thumb is-picture"
+                    title="View picture"
+                    aria-label="View picture"
+                    onClick={() => useVault.getState().showPicture(name)}
+                  >
                     <img src={fileUrl(workspace.path, name)} alt="" draggable={false} />
-                  ) : (
+                  </button>
+                ) : (
+                  <span className="attach-thumb">
                     <span className="attach-ext">{extensionOf(name)}</span>
-                  )}
-                </span>
+                  </span>
+                )}
                 <span className="attach-text">
                   <span className="attach-name" title={name}>
                     {fileName(name)}
@@ -757,7 +767,8 @@ function FileMenu({
 // way a poster on black stands on its own orange. The colour comes
 // from main, which is the only side that can read the picture's pixels, and
 // until it answers - or when it cannot, for a format its decoder does not
-// take - the band is a step up from the panel's ground.
+// take - the band is a step up from the panel's ground. Pressed, it shows the
+// picture on its own over the window.
 function CoverBand({ workspacePath, name }: { workspacePath: string; name: string }) {
   const url = fileUrl(workspacePath, name)
   const [tone, setTone] = useState<{ url: string; colour: string | null } | null>(null)
@@ -775,9 +786,15 @@ function CoverBand({ workspacePath, name }: { workspacePath: string; name: strin
   // A tone worked out for the last picture is not this one's.
   const colour = tone?.url === url ? tone.colour : null
   return (
-    <div className="panel-cover" style={colour ? { background: colour } : undefined}>
+    <button
+      className="panel-cover"
+      style={colour ? { background: colour } : undefined}
+      title="View picture"
+      aria-label="View picture"
+      onClick={() => useVault.getState().showPicture(name)}
+    >
       <img className="panel-cover-image" src={url} alt="" draggable={false} />
-    </div>
+    </button>
   )
 }
 

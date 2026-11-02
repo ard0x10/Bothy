@@ -10,6 +10,8 @@ import { noMenuBar } from './menubar'
 import { ICON } from './icon'
 import { privilegeImageScheme, registerImageProtocol } from './images'
 import { sidebarNow } from './state'
+import { sweepStaleTemps } from './vault/writer'
+import { EDITING_FILE } from '../shared/editing'
 import { closeThemesWatcher, groundColor, loadThemes, watchThemes, wornColors } from './themes'
 import { colorsArgument } from '../shared/colors'
 import { sidebarArgument } from '../shared/sidebar'
@@ -97,6 +99,9 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
   app.setName(APP_NAME)
+  // After the name, which the settings folder is named from. Not awaited: the
+  // window has no reason to wait on a tidy up.
+  void sweepStaleTemps(app.getPath('userData'), ['state.json', EDITING_FILE])
   // The other half of the scheme. It has to be here rather than beside the
   // window, because a protocol belongs to the session and the window is only
   // the first thing that asks on it.
